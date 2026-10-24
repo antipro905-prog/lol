@@ -192,6 +192,297 @@ local function keepFont(instance)
 	end)
 end
 
+local LANGUAGES = {
+	{ "en", "English" },
+	{ "ru", "Русский" },
+	{ "gd", "Gàidhlig" },
+	{ "fr", "Français" },
+}
+
+local INFO_ABOUT = "A menu for your game: aim, ESP, themes, settings and your profile.\nAim assist, auto-shoot and saved settings — Aim tab (needs the GamePass)\nPlayers through walls, names, distance, health — ESP tab\n%d themes and Auto Theme — Themes tab\nLanguage, blur, transparency, border, notifications and the menu key — Settings tab\nYour avatar, account age and time in the menu — Profile tab"
+local HOW_TO = "Press %s or the W button on the left to hide or show the menu. Drag the window by its top bar. Aim and ESP are on their own tabs, colors on the Themes tab, language and menu settings on the Settings tab."
+local KEYS_TEXT = "%s or the W button on the left — hide / show the menu\n— minimize, □ maximize, × hide\nDrag the window by its top bar, drag the W button anywhere"
+
+local TEXTS = {
+	["Search..."] = { ru = "Поиск...", gd = "Lorg...", fr = "Rechercher..." },
+	["Today!"] = { ru = "Сегодня!", gd = "An-diugh!", fr = "Aujourd'hui !" },
+	["%d days"] = { ru = "%d дн.", gd = "%d latha", fr = "%d jours" },
+	["Press a key..."] = { ru = "Нажми клавишу...", gd = "Brùth iuchair...", fr = "Appuie sur une touche..." },
+	["Hello, %s!"] = { ru = "Привет, %s!", gd = "Halò, %s!", fr = "Salut, %s !" },
+	["Happy Halloween"] = { ru = "С Хэллоуином", gd = "Oidhche Shamhna shona", fr = "Joyeux Halloween" },
+	["by %s"] = { ru = "от %s", gd = "le %s", fr = "par %s" },
+	["Home"] = { ru = "Главная", gd = "Dachaigh", fr = "Accueil" },
+	["Welcome!"] = { ru = "Добро пожаловать!", gd = "Fàilte!", fr = "Bienvenue !" },
+	["until Halloween"] = { ru = "до Хэллоуина", gd = "gu Oidhche Shamhna", fr = "avant Halloween" },
+	["toggle menu"] = { ru = "открыть меню", gd = "clàr-taice", fr = "ouvrir le menu" },
+	["menu theme"] = { ru = "тема меню", gd = "ùrlar a' chlàir", fr = "thème du menu" },
+	["Quick start"] = { ru = "Быстрый старт", gd = "Tòiseachadh luath", fr = "Démarrage rapide" },
+	["How to use"] = { ru = "Как пользоваться", gd = "Mar a chleachdas tu e", fr = "Comment l'utiliser" },
+	[HOW_TO] = {
+		ru = "Нажми %s или кнопку W слева, чтобы открыть или спрятать меню. Окно можно двигать за верхнюю полосу. Аим и ESP — на своих вкладках, цвета — во вкладке «Темы», язык и меню — во вкладке «Настройки».",
+		gd = "Brùth %s no am putan W air an taobh chlì gus an clàr-taice a shealltainn no fhalach. Slaod an uinneag leis a' bhàr aig a' mhullach. Tha Amas is ESP air na tabaichean aca fhèin, dathan air an tab Ùrlaran, cànan is roghainnean a' chlàir air an tab Roghainnean.",
+		fr = "Appuie sur %s ou sur le bouton W à gauche pour afficher ou cacher le menu. Déplace la fenêtre par sa barre du haut. Visée et ESP ont leurs propres onglets, les couleurs sont dans Thèmes, la langue et le menu dans Paramètres.",
+	},
+
+	["AIM: BUY"] = { ru = "АИМ: КУПИТЬ", gd = "AMAS: CEANNAICH", fr = "VISÉE : ACHETER" },
+	["AIM: ON"] = { ru = "АИМ: ВКЛ", gd = "AMAS: AIR", fr = "VISÉE : ON" },
+	["AIM: OFF"] = { ru = "АИМ: ВЫКЛ", gd = "AMAS: DHETH", fr = "VISÉE : OFF" },
+	["Instant aim"] = { ru = "Мгновенная наводка", gd = "Amas sa bhad", fr = "Visée instantanée" },
+	["Aim speed: %d%%"] = { ru = "Скорость наводки: %d%%", gd = "Luaths amais: %d%%", fr = "Vitesse de visée : %d%%" },
+	["Target: %s  •  %d m"] = { ru = "Цель: %s  •  %d м", gd = "Targaid: %s  •  %d m", fr = "Cible : %s  •  %d m" },
+
+	["Aim"] = { ru = "Аим", gd = "Amas", fr = "Visée" },
+	["Aim assist and auto-shoot"] = { ru = "Наводка и автострел", gd = "Taic amais is fèin-losgadh", fr = "Aide à la visée et tir auto" },
+	["Buy the Aim GamePass"] = { ru = "Купить геймпасс аима", gd = "Ceannaich an GamePass Amais", fr = "Acheter le GamePass Visée" },
+	["Main"] = { ru = "Основное", gd = "Prìomh", fr = "Principal" },
+	["%s — on / off"] = { ru = "%s — вкл / выкл", gd = "%s — air / dheth", fr = "%s — activer / désactiver" },
+	["Camera Mode"] = { ru = "Режим камеры", gd = "Modh a' chamara", fr = "Mode caméra" },
+	["Rivals — for the Rivals camera"] = { ru = "Rivals — для камеры Rivals", gd = "Rivals — airson camara Rivals", fr = "Rivals — pour la caméra de Rivals" },
+	["Rivals"] = { ru = "Rivals", gd = "Rivals", fr = "Rivals" },
+	["Normal"] = { ru = "Обычный", gd = "Àbhaisteach", fr = "Normal" },
+	["Aim At"] = { ru = "Куда целиться", gd = "Amais air", fr = "Viser" },
+	["Which body part"] = { ru = "Какая часть тела", gd = "Dè am pàirt den bhodhaig", fr = "Quelle partie du corps" },
+	["Head"] = { ru = "Голова", gd = "Ceann", fr = "Tête" },
+	["Body"] = { ru = "Торс", gd = "Bodhaig", fr = "Torse" },
+	["Center"] = { ru = "Центр", gd = "Meadhan", fr = "Centre" },
+	["Head Only"] = { ru = "Только голова", gd = "An ceann a-mhàin", fr = "Tête uniquement" },
+	["Always the head, never switches to the body"] = { ru = "Всегда в голову, никогда не переходит на тело", gd = "An ceann an-còmhnaidh, chan ann a' bhodhaig", fr = "Toujours la tête, jamais le corps" },
+	["Hold Right Mouse"] = { ru = "Зажатая ПКМ", gd = "Cùm am putan deas", fr = "Clic droit maintenu" },
+	["PC: aim only while the right button is held"] = { ru = "ПК: наводка, только пока зажата ПКМ", gd = "PC: amas fhad 's a tha am putan deas ga chumail", fr = "PC : vise seulement avec le clic droit maintenu" },
+	["Right Mouse Through Walls"] = { ru = "ПКМ сквозь стены", gd = "Putan deas tro bhallachan", fr = "Clic droit à travers les murs" },
+	["While held, walls don't block the aim"] = { ru = "Пока зажата, стены не мешают", gd = "Fhad 's a tha e ga chumail, cha bhac ballachan an t-amas", fr = "Maintenu, les murs ne bloquent pas la visée" },
+	["Aim Speed"] = { ru = "Скорость наводки", gd = "Luaths amais", fr = "Vitesse de visée" },
+	["Speed"] = { ru = "Скорость", gd = "Luaths", fr = "Vitesse" },
+	["Instant Aim"] = { ru = "Мгновенная наводка", gd = "Amas sa bhad", fr = "Visée instantanée" },
+	["%s — on / off, %s / %s — speed"] = { ru = "%s — вкл / выкл, %s / %s — скорость", gd = "%s — air / dheth, %s / %s — luaths", fr = "%s — on / off, %s / %s — vitesse" },
+	["Aim Height"] = { ru = "Высота прицела в голове", gd = "Àirde an amais sa cheann", fr = "Hauteur de visée sur la tête" },
+	["Lock"] = { ru = "Захват", gd = "Glasadh", fr = "Verrouillage" },
+	["FOV Radius"] = { ru = "Радиус FOV", gd = "Rèideas FOV", fr = "Rayon du FOV" },
+	["Prediction"] = { ru = "Упреждение", gd = "Ro-innse", fr = "Anticipation" },
+	["Keep Target"] = { ru = "Держать цель", gd = "Cùm an targaid", fr = "Garder la cible" },
+	["Don't jump between players"] = { ru = "Не прыгать между игроками", gd = "Na leum eadar cluicheadairean", fr = "Ne pas sauter d'un joueur à l'autre" },
+	["Keep After Cover"] = { ru = "Держать после укрытия", gd = "Cùm às dèidh fasgaidh", fr = "Garder après un abri" },
+	["Auto-Shoot"] = { ru = "Автострел", gd = "Fèin-losgadh", fr = "Tir auto" },
+	["Shoots when the aim is on an enemy"] = { ru = "Стреляет сам, когда прицел на враге", gd = "Loisgidh e nuair a tha an t-amas air nàmhaid", fr = "Tire quand la visée est sur un ennemi" },
+	["Phone"] = { ru = "Телефон", gd = "Fòn", fr = "Téléphone" },
+	["Everywhere"] = { ru = "Везде", gd = "Anns gach àite", fr = "Partout" },
+	["Off"] = { ru = "Выкл", gd = "Dheth", fr = "Désactivé" },
+	["Accuracy"] = { ru = "Точность", gd = "Cruinneas", fr = "Précision" },
+	["Pause Between Shots"] = { ru = "Пауза между выстрелами", gd = "Stad eadar losgaidhean", fr = "Pause entre les tirs" },
+	["Knife"] = { ru = "Нож", gd = "Sgian", fr = "Couteau" },
+	["Knife Aim"] = { ru = "Аим ножом", gd = "Amas sgeine", fr = "Visée au couteau" },
+	["Knife in hand: turns to the closest enemy's head"] = { ru = "Нож в руке: поворот к голове ближайшего врага", gd = "Sgian nad làimh: tionndaidh gu ceann an nàmhaid as fhaisge", fr = "Couteau en main : se tourne vers la tête de l'ennemi le plus proche" },
+	["Knife Aim Range"] = { ru = "Дальность аима ножом", gd = "Raon amas sgeine", fr = "Portée de la visée au couteau" },
+	["%d studs"] = { ru = "%d студов", gd = "%d studs", fr = "%d studs" },
+	["Auto Swing"] = { ru = "Автоудар", gd = "Fèin-bhualadh", fr = "Coup auto" },
+	["Swings by itself when the head is close enough"] = { ru = "Бьёт сам, когда голова достаточно близко", gd = "Buailidh e leis fhèin nuair a tha an ceann faisg gu leòr", fr = "Frappe tout seul quand la tête est assez proche" },
+	["Swing Range"] = { ru = "Дальность удара", gd = "Raon bualaidh", fr = "Portée du coup" },
+	["Pause Between Swings"] = { ru = "Пауза между ударами", gd = "Stad eadar buillean", fr = "Pause entre les coups" },
+	["PC: Hold Right Mouse For Knife"] = { ru = "ПК: нож только по ПКМ", gd = "PC: Cùm am putan deas airson na sgeine", fr = "PC : clic droit pour le couteau" },
+	["Off — works by itself, like on the phone"] = { ru = "Выкл — работает сам, как на телефоне", gd = "Dheth — obraichidh e leis fhèin, mar air an fhòn", fr = "Désactivé — marche tout seul, comme sur téléphone" },
+	["Checks"] = { ru = "Проверки", gd = "Sgrùdaidhean", fr = "Vérifications" },
+	["Team Check"] = { ru = "Не целиться в своих", gd = "Sgrùdadh sgioba", fr = "Vérif. d'équipe" },
+	["Don't aim at teammates"] = { ru = "Свои не становятся целью", gd = "Na amais air do sgioba", fr = "Ne pas viser ses coéquipiers" },
+	["Teams"] = { ru = "Команды", gd = "Sgiobaidhean", fr = "Équipes" },
+	["Auto — find teams by itself"] = { ru = "Авто — сам находит команды", gd = "Fèin — lorgaidh e sgiobaidhean leis fhèin", fr = "Auto — trouve les équipes tout seul" },
+	["Auto"] = { ru = "Авто", gd = "Fèin", fr = "Auto" },
+	["All enemies"] = { ru = "Все враги", gd = "Nàimhdean uile", fr = "Tous ennemis" },
+	["Your Team"] = { ru = "Твоя команда", gd = "Do sgioba", fr = "Ton équipe" },
+	["Open the menu for a second — your team shows up here"] = { ru = "Открой меню на секунду — здесь появится твоя команда", gd = "Fosgail an clàr-taice airson diog — nochdaidh do sgioba an seo", fr = "Ouvre le menu une seconde — ton équipe s'affiche ici" },
+	["Wall Check"] = { ru = "Проверка стен", gd = "Sgrùdadh bhallachan", fr = "Vérif. des murs" },
+	["Don't aim through walls"] = { ru = "Не целиться сквозь стены", gd = "Na amais tro bhallachan", fr = "Ne pas viser à travers les murs" },
+	["Target Bots"] = { ru = "Целиться в ботов", gd = "Amais air botaichean", fr = "Viser les bots" },
+	["NPCs with a Humanoid too"] = { ru = "И NPC с Humanoid", gd = "NPCan le Humanoid cuideachd", fr = "Les PNJ avec un Humanoid aussi" },
+	["Show FOV Circle"] = { ru = "Показывать круг FOV", gd = "Seall cearcall FOV", fr = "Afficher le cercle FOV" },
+	["Circle around the aim point"] = { ru = "Круг вокруг точки наводки", gd = "Cearcall timcheall air puing an amais", fr = "Cercle autour du point de visée" },
+	["Show Target"] = { ru = "Показывать цель", gd = "Seall an targaid", fr = "Afficher la cible" },
+	["Name and distance at the top"] = { ru = "Ник и расстояние сверху", gd = "Ainm is astar aig a' mhullach", fr = "Nom et distance en haut" },
+	["Saving"] = { ru = "Сохранение", gd = "Sàbhaladh", fr = "Sauvegarde" },
+	["Your Settings"] = { ru = "Твои настройки", gd = "Do roghainnean", fr = "Tes paramètres" },
+	["Loading your settings…"] = { ru = "Загрузка твоих настроек…", gd = "A' luchdadh do roghainnean…", fr = "Chargement de tes paramètres…" },
+	["Reset Aim and ESP Settings"] = { ru = "Сбросить настройки аима и ESP", gd = "Ath-shuidhich roghainnean Amais is ESP", fr = "Réinitialiser Visée et ESP" },
+	["Settings reset to default"] = { ru = "Настройки сброшены к стандартным", gd = "Chaidh na roghainnean ath-shuidheachadh", fr = "Paramètres réinitialisés" },
+
+	["See where players are"] = { ru = "Видно, где игроки", gd = "Faic càite a bheil na cluicheadairean", fr = "Voir où sont les joueurs" },
+	["Show players through walls"] = { ru = "Игроки видны сквозь стены", gd = "Seall cluicheadairean tro bhallachan", fr = "Voir les joueurs à travers les murs" },
+	["Highlight"] = { ru = "Подсветка", gd = "Soillseachadh", fr = "Surbrillance" },
+	["Glowing outline through walls"] = { ru = "Светящийся контур сквозь стены", gd = "Iomall deàlrach tro bhallachan", fr = "Contour lumineux à travers les murs" },
+	["Names"] = { ru = "Ники", gd = "Ainmean", fr = "Noms" },
+	["Name above the head"] = { ru = "Ник над головой", gd = "Ainm os cionn a' chinn", fr = "Nom au-dessus de la tête" },
+	["Distance"] = { ru = "Расстояние", gd = "Astar", fr = "Distance" },
+	["How far away they are"] = { ru = "Как далеко игрок", gd = "Dè cho fada air falbh 's a tha iad", fr = "À quelle distance ils sont" },
+	["Health Bar"] = { ru = "Полоска HP", gd = "Bàr slàinte", fr = "Barre de vie" },
+	["HP under the name"] = { ru = "HP под ником", gd = "HP fon ainm", fr = "PV sous le nom" },
+	["Tracers"] = { ru = "Линии", gd = "Loidhnichean", fr = "Traceurs" },
+	["Lines from the bottom of the screen"] = { ru = "Линии от низа экрана", gd = "Loidhnichean o bhonn na sgrìn", fr = "Lignes depuis le bas de l'écran" },
+	["Show Teammates"] = { ru = "Показывать своих", gd = "Seall do sgioba", fr = "Afficher les coéquipiers" },
+	["Your team too"] = { ru = "Свою команду тоже", gd = "Do sgioba cuideachd", fr = "Ton équipe aussi" },
+	["Max Distance"] = { ru = "Макс. дистанция", gd = "An t-astar as motha", fr = "Distance max" },
+	["%d m"] = { ru = "%d м", gd = "%d m", fr = "%d m" },
+
+	["Saved at %s — next time they load by themselves"] = { ru = "Сохранено в %s — в следующий раз загрузится само", gd = "Air a shàbhaladh aig %s — an ath thuras luchdaichidh iad leotha fhèin", fr = "Sauvegardé à %s — la prochaine fois ils se chargeront tout seuls" },
+	["Couldn't save, trying again…"] = { ru = "Не удалось сохранить, пробую ещё раз…", gd = "Cha b' urrainn sàbhaladh, a' feuchainn a-rithist…", fr = "Échec de la sauvegarde, nouvel essai…" },
+	["Settings won't be kept after you leave: the game has no AimBotConfigServer script"] = { ru = "Настройки не запомнятся после выхода: в игре нет скрипта AimBotConfigServer", gd = "Cha tèid na roghainnean a chumail: chan eil an sgriobt AimBotConfigServer sa gheama", fr = "Les paramètres ne seront pas gardés : le jeu n'a pas le script AimBotConfigServer" },
+	["Loading your settings… (try %d of 5)"] = { ru = "Загрузка твоих настроек… (попытка %d из 5)", gd = "A' luchdadh do roghainnean… (oidhirp %d de 5)", fr = "Chargement de tes paramètres… (essai %d sur 5)" },
+	["Storage doesn't answer — settings won't be kept this time"] = { ru = "Хранилище не отвечает — в этот раз настройки не запомнятся", gd = "Chan eil an stòras a' freagairt — cha tèid na roghainnean a chumail an turas seo", fr = "Le stockage ne répond pas — paramètres non gardés cette fois" },
+	["Your settings are loaded — just like last time"] = { ru = "Твои настройки загружены — как в прошлый раз", gd = "Chaidh do roghainnean a luchdadh — dìreach mar an turas mu dheireadh", fr = "Tes paramètres sont chargés — comme la dernière fois" },
+	["Your aim settings are loaded"] = { ru = "Твои настройки аима загружены", gd = "Chaidh do roghainnean amais a luchdadh", fr = "Tes paramètres de visée sont chargés" },
+	["First start: set everything up — it will be remembered"] = { ru = "Первый запуск: настрой всё под себя — это запомнится", gd = "A' chiad turas: suidhich a h-uile càil — thèid a chuimhneachadh", fr = "Premier lancement : règle tout — ce sera retenu" },
+	["First start: set up your aim — it will be remembered"] = { ru = "Первый запуск: настрой аим — это запомнится", gd = "A' chiad turas: suidhich an t-amas — thèid a chuimhneachadh", fr = "Premier lancement : règle ta visée — ce sera retenu" },
+	["player attribute"] = { ru = "атрибут игрока", gd = "buadh a' chluicheadair", fr = "attribut du joueur" },
+	["character attribute"] = { ru = "атрибут персонажа", gd = "buadh a' charactair", fr = "attribut du personnage" },
+	["Teams are off: every player is an enemy"] = { ru = "Команды выключены: все игроки — враги", gd = "Tha sgiobaidhean dheth: 's e nàmhaid a th' anns gach cluicheadair", fr = "Équipes désactivées : tous les joueurs sont ennemis" },
+	["No team found — every player is an enemy"] = { ru = "Команда не найдена — все игроки враги", gd = "Cha deach sgioba a lorg — 's e nàmhaid a th' anns gach cluicheadair", fr = "Aucune équipe trouvée — tous les joueurs sont ennemis" },
+	["Your team: %s (%s)%s\nTeammates: %d  •  Enemies: %d"] = { ru = "Твоя команда: %s (%s)%s\nСвоих: %d  •  Врагов: %d", gd = "Do sgioba: %s (%s)%s\nCo-chluicheadairean: %d  •  Nàimhdean: %d", fr = "Ton équipe : %s (%s)%s\nCoéquipiers : %d  •  Ennemis : %d" },
+	[", everyone is in it — free for all"] = { ru = ", все в одной — каждый сам за себя", gd = ", tha a h-uile duine innte — gach neach air a shon fhèin", fr = ", tout le monde dedans — chacun pour soi" },
+
+	["Themes"] = { ru = "Темы", gd = "Ùrlaran", fr = "Thèmes" },
+	["Change the look of the menu"] = { ru = "Внешний вид меню", gd = "Atharraich coltas a' chlàir-taice", fr = "Changer l'apparence du menu" },
+	["Choose a theme"] = { ru = "Выбери тему", gd = "Tagh ùrlar", fr = "Choisis un thème" },
+	["ACTIVE"] = { ru = "ВКЛ", gd = "AIR", fr = "ACTIF" },
+	["Click to apply"] = { ru = "Нажми, чтобы включить", gd = "Briog gus a chur an sàs", fr = "Clique pour appliquer" },
+	["Theme changed"] = { ru = "Тема изменена", gd = "Chaidh an t-ùrlar atharrachadh", fr = "Thème changé" },
+	["%s is on now"] = { ru = "Теперь включена %s", gd = "Tha %s air a-nis", fr = "%s est activé" },
+	["Extra"] = { ru = "Дополнительно", gd = "A bharrachd", fr = "Extra" },
+	["Auto Theme"] = { ru = "Автосмена темы", gd = "Ùrlar fèin-ghluasadach", fr = "Thème auto" },
+	["Themes change every %d seconds"] = { ru = "Темы меняются каждые %d с", gd = "Atharraichidh ùrlaran gach %d diog", fr = "Les thèmes changent toutes les %d secondes" },
+	["Auto Theme enabled"] = { ru = "Автосмена темы включена", gd = "Ùrlar fèin-ghluasadach air", fr = "Thème auto activé" },
+	["Sit back and watch the colors"] = { ru = "Отдыхай и смотри на цвета", gd = "Gabh fois is coimhead air na dathan", fr = "Installe-toi et admire les couleurs" },
+	["Auto Theme disabled"] = { ru = "Автосмена темы выключена", gd = "Ùrlar fèin-ghluasadach dheth", fr = "Thème auto désactivé" },
+	["%s stays on"] = { ru = "Остаётся %s", gd = "Fanaidh %s air", fr = "%s reste activé" },
+
+	[KEYS_TEXT] = {
+		ru = "%s или кнопка W слева — открыть / спрятать меню\n— свернуть, □ развернуть, × спрятать\nОкно двигается за верхнюю полосу, кнопку W можно перетащить куда угодно",
+		gd = "%s no am putan W air an taobh chlì — seall / falaich an clàr-taice\n— lùghdaich, □ meudaich, × falaich\nSlaod an uinneag leis a' bhàr aig a' mhullach, slaod am putan W gu àite sam bith",
+		fr = "%s ou le bouton W à gauche — afficher / cacher le menu\n— réduire, □ agrandir, × cacher\nDéplace la fenêtre par sa barre du haut, et le bouton W où tu veux",
+	},
+	["Key changed"] = { ru = "Клавиша изменена", gd = "Chaidh an iuchair atharrachadh", fr = "Touche changée" },
+	["New key: %s"] = { ru = "Новая клавиша: %s", gd = "Iuchair ùr: %s", fr = "Nouvelle touche : %s" },
+	["Settings"] = { ru = "Настройки", gd = "Roghainnean", fr = "Paramètres" },
+	["Menu look and keys"] = { ru = "Язык, вид меню и клавиши", gd = "Cànan, coltas is iuchraichean", fr = "Langue, apparence et touches" },
+	["Language"] = { ru = "Язык", gd = "Cànan", fr = "Langue" },
+	["Language changed"] = { ru = "Язык изменён", gd = "Chaidh an cànan atharrachadh", fr = "Langue changée" },
+	["Menu"] = { ru = "Меню", gd = "Clàr-taice", fr = "Menu" },
+	["Blur"] = { ru = "Размытие", gd = "Sgleò", fr = "Flou" },
+	["Blur the game behind the menu"] = { ru = "Размывать игру за меню", gd = "Cuir sgleò air a' gheama air cùl a' chlàir", fr = "Flouter le jeu derrière le menu" },
+	["Blur Strength"] = { ru = "Сила размытия", gd = "Neart an sgleò", fr = "Intensité du flou" },
+	["Window Transparency"] = { ru = "Прозрачность окна", gd = "Trìd-shoilleireachd na h-uinneige", fr = "Transparence de la fenêtre" },
+	["Animated Border"] = { ru = "Анимированная рамка", gd = "Iomall beòthail", fr = "Bordure animée" },
+	["The glowing border slowly spins"] = { ru = "Светящаяся рамка медленно крутится", gd = "Tionndaidhidh an t-iomall deàlrach gu slaodach", fr = "La bordure lumineuse tourne lentement" },
+	["Notifications"] = { ru = "Уведомления", gd = "Brathan", fr = "Notifications" },
+	["Pop-ups in the bottom-right corner"] = { ru = "Окошки в правом нижнем углу", gd = "Brathan san oisean gu h-ìosal air an làimh dheis", fr = "Fenêtres en bas à droite" },
+	["Keybinds"] = { ru = "Клавиши", gd = "Iuchraichean", fr = "Touches" },
+	["How to change a key"] = { ru = "Как поменять клавишу", gd = "Mar a dh'atharraicheas tu iuchair", fr = "Comment changer une touche" },
+	["Click the key button, then press a new key. Escape cancels."] = { ru = "Нажми на кнопку клавиши, потом нажми новую клавишу. Escape — отмена.", gd = "Briog air putan na h-iuchrach, an uairsin brùth iuchair ùr. Sguiridh Escape dheth.", fr = "Clique sur le bouton de la touche, puis appuie sur une nouvelle touche. Échap annule." },
+	["Show / Hide Menu"] = { ru = "Открыть / спрятать меню", gd = "Seall / Falaich an clàr-taice", fr = "Afficher / cacher le menu" },
+
+	["Profile"] = { ru = "Профиль", gd = "Pròifil", fr = "Profil" },
+	["Your account"] = { ru = "Твой аккаунт", gd = "An cunntas agad", fr = "Ton compte" },
+	["account age"] = { ru = "возраст аккаунта", gd = "aois a' chunntais", fr = "âge du compte" },
+	["Yes"] = { ru = "Да", gd = "Tha", fr = "Oui" },
+	["No"] = { ru = "Нет", gd = "Chan eil", fr = "Non" },
+	["Premium"] = { ru = "Premium", gd = "Premium", fr = "Premium" },
+	["in menu"] = { ru = "в меню", gd = "sa chlàr-taice", fr = "dans le menu" },
+	["Info"] = { ru = "Инфо", gd = "Fiosrachadh", fr = "Infos" },
+	["About the menu"] = { ru = "О меню", gd = "Mun chlàr-taice", fr = "À propos du menu" },
+	["Made for %s\nTheme: %s"] = { ru = "Сделано для %s\nТема: %s", gd = "Air a dhèanamh airson %s\nÙrlar: %s", fr = "Fait pour %s\nThème : %s" },
+	["Controls"] = { ru = "Управление", gd = "Smachdan", fr = "Commandes" },
+	["Keys and buttons"] = { ru = "Клавиши и кнопки", gd = "Iuchraichean is putanan", fr = "Touches et boutons" },
+	["What's inside"] = { ru = "Что внутри", gd = "Na tha na bhroinn", fr = "Contenu" },
+	[INFO_ABOUT] = {
+		ru = "Меню для твоей игры: аим, ESP, темы, настройки и профиль.\nНаводка, автострел и сохранение настроек — вкладка «Аим» (нужен геймпасс)\nИгроки сквозь стены, ники, расстояние, здоровье — вкладка ESP\n%d тем и автосмена темы — вкладка «Темы»\nЯзык, размытие, прозрачность, рамка, уведомления и клавиша меню — вкладка «Настройки»\nАватар, возраст аккаунта и время в меню — вкладка «Профиль»",
+		gd = "Clàr-taice airson do gheama: amas, ESP, ùrlaran, roghainnean is do phròifil.\nTaic amais, fèin-losgadh is roghainnean air an sàbhaladh — tab Amas (feumaidh e an GamePass)\nCluicheadairean tro bhallachan, ainmean, astar, slàinte — tab ESP\n%d ùrlaran is ùrlar fèin-ghluasadach — tab Ùrlaran\nCànan, sgleò, trìd-shoilleireachd, iomall, brathan is iuchair a' chlàir — tab Roghainnean\nDo dhealbh, aois a' chunntais is ùine sa chlàr-taice — tab Pròifil",
+		fr = "Un menu pour ton jeu : visée, ESP, thèmes, paramètres et profil.\nAide à la visée, tir auto et paramètres sauvegardés — onglet Visée (GamePass requis)\nJoueurs à travers les murs, noms, distance, vie — onglet ESP\n%d thèmes et thème auto — onglet Thèmes\nLangue, flou, transparence, bordure, notifications et touche du menu — onglet Paramètres\nTon avatar, l'âge du compte et le temps dans le menu — onglet Profil",
+	},
+	["Menu hidden"] = { ru = "Меню спрятано", gd = "Chaidh an clàr-taice fhalach", fr = "Menu caché" },
+	["Press %s or the W button on the left"] = { ru = "Нажми %s или кнопку W слева", gd = "Brùth %s no am putan W air an taobh chlì", fr = "Appuie sur %s ou sur le bouton W à gauche" },
+	["Welcome, %s!"] = { ru = "Добро пожаловать, %s!", gd = "Fàilte, %s!", fr = "Bienvenue, %s !" },
+	["Press %s to hide the menu"] = { ru = "Нажми %s, чтобы спрятать меню", gd = "Brùth %s gus an clàr-taice fhalach", fr = "Appuie sur %s pour cacher le menu" },
+	["Loading theme..."] = { ru = "Загрузка темы...", gd = "A' luchdadh an ùrlair...", fr = "Chargement du thème..." },
+	["Preparing menu..."] = { ru = "Подготовка меню...", gd = "Ag ullachadh a' chlàir-taice...", fr = "Préparation du menu..." },
+	["Almost there..."] = { ru = "Почти готово...", gd = "Cha mhòr deiseil...", fr = "Presque prêt..." },
+	["Done!"] = { ru = "Готово!", gd = "Deiseil!", fr = "Terminé !" },
+}
+
+local DICT, REVERSE = {}, {}
+for _, language in ipairs(LANGUAGES) do
+	DICT[language[1]] = {}
+	REVERSE[language[1]] = {}
+end
+for english, row in pairs(TEXTS) do
+	for code, text in pairs(row) do
+		DICT[code][english] = text
+		if REVERSE[code][text] == nil then
+			REVERSE[code][text] = english
+		end
+	end
+end
+
+local currentLanguage = "en"
+pcall(function()
+	local locale = string.lower(game:GetService("LocalizationService").RobloxLocaleId)
+	local code = string.sub(locale, 1, 2)
+	if DICT[code] then
+		currentLanguage = code
+	end
+end)
+
+local function tr(text)
+	return DICT[currentLanguage][text] or text
+end
+
+local function trf(template, ...)
+	return string.format(tr(template), ...)
+end
+
+local textSources = setmetatable({}, { __mode = "k" })
+local placeholderSources = setmetatable({}, { __mode = "k" })
+local languageHooks = {}
+
+local function watchText(instance)
+	if instance:IsA("TextBox") then
+		placeholderSources[instance] = instance.PlaceholderText
+		instance.PlaceholderText = tr(instance.PlaceholderText)
+		return
+	end
+	local function update()
+		local text = instance.Text
+		local source = REVERSE[currentLanguage][text] or text
+		textSources[instance] = source
+		local shown = tr(source)
+		if shown ~= text then
+			instance.Text = shown
+		end
+	end
+	update()
+	instance:GetPropertyChangedSignal("Text"):Connect(update)
+end
+
+local function onLanguage(hook)
+	table.insert(languageHooks, hook)
+	hook()
+end
+
+local function setLanguage(code)
+	if not DICT[code] or code == currentLanguage then
+		return false
+	end
+	currentLanguage = code
+	for instance, source in pairs(textSources) do
+		local shown = tr(source)
+		if instance.Text ~= shown then
+			instance.Text = shown
+		end
+	end
+	for instance, source in pairs(placeholderSources) do
+		instance.PlaceholderText = tr(source)
+	end
+	for _, hook in ipairs(languageHooks) do
+		task.spawn(hook)
+	end
+	return true
+end
+
 local function create(className, props)
 	local instance = Instance.new(className)
 	if instance:IsA("GuiObject") then
@@ -204,6 +495,7 @@ local function create(className, props)
 	end
 	if className == "TextLabel" or className == "TextButton" or className == "TextBox" then
 		keepFont(instance)
+		watchText(instance)
 	end
 	instance.Parent = parent
 	return instance
@@ -668,7 +960,8 @@ label({
 	Parent = versionPill,
 })
 
-local authorLabel = label({
+local authorLabel
+authorLabel = label({
 	Position = UDim2.fromOffset(70, 42),
 	Size = UDim2.fromOffset(260, 16),
 	Text = CONFIG.Author,
@@ -677,6 +970,9 @@ local authorLabel = label({
 	TextColor3 = COMMON.White,
 	Parent = topBar,
 })
+onLanguage(function()
+	authorLabel.Text = trf("by %s", player.Name)
+end)
 accent(authorLabel, 0, false)
 
 local hoveringWindowButton = false
@@ -1169,6 +1465,7 @@ local function applySearch()
 	local query = lowerText(searchBox.Text)
 	for _, tab in ipairs(tabs) do
 		tab.Button.Visible = query == "" or string.find(lowerText(tab.Name), query, 1, true) ~= nil
+			or string.find(lowerText(tr(tab.Name)), query, 1, true) ~= nil
 	end
 	clearButton.Visible = searchBox.Text ~= ""
 	refreshTabs(0.3)
@@ -1363,7 +1660,7 @@ local function halloweenCountdown()
 		target = os.time({ year = now.year + 1, month = 10, day = 31, hour = 12 })
 	end
 	local days = math.floor((target - today) / 86400 + 0.5)
-	return days == 0 and "Today!" or (days .. " days")
+	return days == 0 and tr("Today!") or trf("%d days", days)
 end
 
 local function section(page, title)
@@ -1644,6 +1941,11 @@ local function slider(page, title, minimum, maximum, default, suffix, callback, 
 			render(0.12)
 		end
 	end
+	if formatter then
+		table.insert(languageHooks, function()
+			render(0)
+		end)
+	end
 
 	local sliding = false
 	local function slideTo(input)
@@ -1816,16 +2118,19 @@ local function hero(page)
 		})
 		round(circle)
 	end
-	label({
+	local helloLabel = label({
 		Position = UDim2.fromOffset(20, 22),
 		Size = UDim2.new(1, -140, 0, 32),
-		Text = "Hello, " .. player.Name .. "!",
+		Text = "",
 		Font = FONT_BOLD,
 		TextSize = 26,
 		TextColor3 = COMMON.White,
 		TextTruncate = Enum.TextTruncate.AtEnd,
 		Parent = banner,
 	})
+	onLanguage(function()
+		helloLabel.Text = trf("Hello, %s!", player.Name)
+	end)
 	label({
 		Position = UDim2.fromOffset(20, 56),
 		Size = UDim2.new(1, -140, 0, 20),
@@ -1926,13 +2231,16 @@ local function profileHeader(page)
 	return frame
 end
 
-local homePage = createTab("Home", "★", "Welcome to " .. CONFIG.Title)
+local homePage = createTab("Home", "★", "Welcome!")
 hero(homePage)
 local homeStats = statGrid(homePage, {
 	{ halloweenCountdown(), "until Halloween" },
 	{ CONFIG.ToggleKey.Name, "toggle menu" },
 	{ THEME.Name, "menu theme" },
 })
+table.insert(languageHooks, function()
+	homeStats[1].Text = halloweenCountdown()
+end)
 onTheme(function()
 	homeStats[3].Text = THEME.Name
 end)
@@ -1966,6 +2274,15 @@ local function setupAim()
 		TargetNPC = false,
 		ShowFOV = true,
 		ShowTargetInfo = true,
+		Language = currentLanguage,
+		HeadOnly = true,
+		AimHeight = 0.2,
+		KnifeAim = true,
+		KnifeHold = false,
+		KnifeRange = 15,
+		KnifeAutoSwing = true,
+		KnifeSwingRange = 7,
+		KnifeSwingDelay = 0.15,
 		ESP = true,
 		ESPHighlight = true,
 		ESPNames = true,
@@ -2090,13 +2407,13 @@ local function setupAim()
 	local function updateUI()
 		local suffix = isMobile and "" or (" (" .. keyName(AIM.ToggleKey) .. ")")
 		if not hasPass then
-			toggleBtn.Text = "AIM: BUY"
+			toggleBtn.Text = tr("AIM: BUY")
 			toggleBtn.BackgroundColor3 = COLORS.gold
 		elseif enabled then
-			toggleBtn.Text = "AIM: ON" .. suffix
+			toggleBtn.Text = tr("AIM: ON") .. suffix
 			toggleBtn.BackgroundColor3 = COLORS.slimeDark
 		else
-			toggleBtn.Text = "AIM: OFF" .. suffix
+			toggleBtn.Text = tr("AIM: OFF") .. suffix
 			toggleBtn.BackgroundColor3 = COLORS.red
 		end
 		circle.Visible = AIM.ShowFOV and hasPass and enabled
@@ -2144,9 +2461,9 @@ local function setupAim()
 
 	local function speedText()
 		if isInstant() then
-			return "Instant aim"
+			return tr("Instant aim")
 		end
-		return string.format("Aim speed: %d%%", math.floor(AIM.Smoothness * 100 + 0.5))
+		return trf("Aim speed: %d%%", math.floor(AIM.Smoothness * 100 + 0.5))
 	end
 
 	local speedShowId = 0
@@ -2232,12 +2549,14 @@ local function setupAim()
 		AimPart = { Head = true, UpperTorso = true, HumanoidRootPart = true },
 		AutoShoot = { Phone = true, All = true, Off = true },
 		TeamMode = { Auto = true, Off = true },
+		Language = { en = true, ru = true, gd = true, fr = true },
 	}
 
 	local RANGES = {
 		FOV = { 30, 400 }, Smoothness = { 0.05, 1 }, Prediction = { 0, 0.3 },
 		LockGrace = { 0, 1 }, AutoShootAngle = { 0.5, 10 }, AutoShootDelay = { 0.03, 0.5 },
 		ESPMaxDistance = { 50, 3000 }, SpeedStep = { 0.01, 0.5 },
+		AimHeight = { -1, 1 }, KnifeRange = { 5, 40 }, KnifeSwingRange = { 3, 15 }, KnifeSwingDelay = { 0.05, 1 },
 	}
 
 	local function exportCode()
@@ -2315,7 +2634,8 @@ local function setupAim()
 
 	local function aimToggle(page, title, description, key)
 		local api
-		api = toggle(page, nil, title, description, getValue(key), function(on)
+		local describe = type(description) == "function" and description or nil
+		api = toggle(page, nil, title, describe and describe() or description, getValue(key), function(on)
 			if key == "enabled" then
 				if on and not hasPass then
 					api.Sync(false)
@@ -2331,6 +2651,11 @@ local function setupAim()
 		table.insert(refreshers, function()
 			api.Sync(getValue(key))
 		end)
+		if describe then
+			table.insert(languageHooks, function()
+				api.SetDescription(describe())
+			end)
+		end
 	end
 
 	local function aimSlider(page, title, key, minimum, maximum, scale, formatter)
@@ -2382,7 +2707,7 @@ local function setupAim()
 		local function sync()
 			for _, opt in ipairs(options) do
 				if opt[1] == AIM[key] then
-					pill.Text = opt[2] .. "  ›"
+					pill.Text = tr(opt[2]) .. "  ›"
 				end
 			end
 		end
@@ -2422,7 +2747,9 @@ local function setupAim()
 	end)
 
 	section(aimPage, "Main")
-	aimToggle(aimPage, "Aim", keyName(AIM.ToggleKey) .. " — on / off", "enabled")
+	aimToggle(aimPage, "Aim", function()
+		return trf("%s — on / off", keyName(AIM.ToggleKey))
+	end, "enabled")
 	aimChoice(aimPage, "Camera Mode", "Rivals — for the Rivals camera", "AimMode", {
 		{ "Override", "Rivals" },
 		{ "Classic", "Normal" },
@@ -2432,16 +2759,22 @@ local function setupAim()
 		{ "UpperTorso", "Body" },
 		{ "HumanoidRootPart", "Center" },
 	})
-	aimToggle(aimPage, "Hold Right Mouse", "Aim only while the right button is held", "HoldToAim")
+	aimToggle(aimPage, "Head Only", "Always the head, never switches to the body", "HeadOnly")
+	aimToggle(aimPage, "Hold Right Mouse", "PC: aim only while the right button is held", "HoldToAim")
 	aimToggle(aimPage, "Right Mouse Through Walls", "While held, walls don't block the aim", "HoldThroughWalls")
 
 	section(aimPage, "Aim Speed")
 	aimSlider(aimPage, "Speed", "Smoothness", 5, 100, 100, function(v)
 		return v .. "%"
 	end)
-	aimToggle(aimPage, "Instant Aim", keyName(AIM.SnapKey) .. " — on / off, " .. keyName(AIM.SpeedUpKey) .. " / " .. keyName(AIM.SpeedDownKey) .. " — speed", "InstantSnap")
+	aimToggle(aimPage, "Instant Aim", function()
+		return trf("%s — on / off, %s / %s — speed", keyName(AIM.SnapKey), keyName(AIM.SpeedUpKey), keyName(AIM.SpeedDownKey))
+	end, "InstantSnap")
 
 	section(aimPage, "Lock")
+	aimSlider(aimPage, "Aim Height", "AimHeight", -100, 100, 100, function(v)
+		return string.format("%+.2f", v / 100)
+	end)
 	aimSlider(aimPage, "FOV Radius", "FOV", 30, 400, 1, function(v)
 		return v .. " px"
 	end)
@@ -2466,6 +2799,20 @@ local function setupAim()
 		return v .. " ms"
 	end)
 
+	section(aimPage, "Knife")
+	aimToggle(aimPage, "Knife Aim", "Knife in hand: turns to the closest enemy's head", "KnifeAim")
+	aimSlider(aimPage, "Knife Aim Range", "KnifeRange", 5, 40, 1, function(v)
+		return trf("%d studs", v)
+	end)
+	aimToggle(aimPage, "Auto Swing", "Swings by itself when the head is close enough", "KnifeAutoSwing")
+	aimSlider(aimPage, "Swing Range", "KnifeSwingRange", 3, 15, 1, function(v)
+		return trf("%d studs", v)
+	end)
+	aimSlider(aimPage, "Pause Between Swings", "KnifeSwingDelay", 50, 1000, 1000, function(v)
+		return v .. " ms"
+	end)
+	aimToggle(aimPage, "PC: Hold Right Mouse For Knife", "Off — works by itself, like on the phone", "KnifeHold")
+
 	section(aimPage, "Checks")
 	aimToggle(aimPage, "Team Check", "Don't aim at teammates", "TeamCheck")
 	aimChoice(aimPage, "Teams", "Auto — find teams by itself", "TeamMode", {
@@ -2484,7 +2831,9 @@ local function setupAim()
 	configStatus = statusText
 	aimButton(aimPage, "Reset Aim and ESP Settings", function()
 		for _, k in ipairs(SAVE_KEYS) do
-			AIM[k] = DEFAULTS[k]
+			if k ~= "Language" then
+				AIM[k] = DEFAULTS[k]
+			end
 		end
 		enabled = true
 		applyConfig()
@@ -2501,7 +2850,7 @@ local function setupAim()
 	aimToggle(espPage, "Tracers", "Lines from the bottom of the screen", "ESPTracers")
 	aimToggle(espPage, "Show Teammates", "Your team too", "ESPTeammates")
 	aimSlider(espPage, "Max Distance", "ESPMaxDistance", 50, 3000, 1, function(v)
-		return v .. " m"
+		return trf("%d m", v)
 	end)
 
 	MarketplaceService.PromptGamePassPurchaseFinished:Connect(function(plr, id, purchased)
@@ -2525,6 +2874,10 @@ local function setupAim()
 	end
 
 	applyConfig()
+	table.insert(languageHooks, function()
+		AIM.Language = currentLanguage
+		updateUI()
+	end)
 
 	local function showToast(text, _, seconds)
 		notify("Aim", text, seconds or 3)
@@ -2547,7 +2900,7 @@ local function setupAim()
 		saveBusy = false
 		if ok and saved == true then
 			lastSaved = code
-			setStatus("Saved at " .. os.date("%H:%M") .. " — next time they load by themselves", COLORS.slime)
+			setStatus(trf("Saved at %s — next time they load by themselves", os.date("%H:%M")), COLORS.slime)
 		else
 			dirtyAt = os.clock() + 2
 			setStatus("Couldn't save, trying again…", COLORS.red)
@@ -2572,7 +2925,7 @@ local function setupAim()
 				res = r
 				if r.ok or r.fatal then break end
 			end
-			setStatus(string.format("Loading your settings… (try %d of 5)", attempt + 1), COMMON.SubText)
+			setStatus(trf("Loading your settings… (try %d of 5)", attempt + 1), COMMON.SubText)
 			task.wait(2)
 		end
 
@@ -2586,6 +2939,7 @@ local function setupAim()
 
 		if not res.new and code ~= "" then
 			importCode(code)
+			setLanguage(AIM.Language)
 			applyConfig()
 			lastSaved = code
 			persistReady = true
@@ -2737,9 +3091,9 @@ local function setupAim()
 					if not key then
 						text = "No team found — every player is an enemy"
 					else
-						text = string.format("Your team: %s (%s)%s\nTeammates: %d  •  Enemies: %d",
-							string.sub(key, 3), how,
-							teamCache.ffa and ", everyone is in it — free for all" or "",
+						text = trf("Your team: %s (%s)%s\nTeammates: %d  •  Enemies: %d",
+							string.sub(key, 3), tr(how),
+							teamCache.ffa and tr(", everyone is in it — free for all") or "",
 							mates, foes)
 					end
 				end
@@ -2906,7 +3260,7 @@ local function setupAim()
 						o.name.TextColor3 = color
 
 						o.info.Visible = AIM.ESPDistance
-						o.info.Text = math.floor(dist + 0.5) .. " m"
+						o.info.Text = trf("%d m", math.floor(dist + 0.5))
 
 						o.hpBack.Visible = AIM.ESPHealth
 						local hp = math.clamp(hum.Health / math.max(hum.MaxHealth, 1), 0, 1)
@@ -2955,7 +3309,8 @@ local function setupAim()
 	}
 
 	local function getAimPart(char)
-		for _, name in ipairs(PART_NAMES[AIM.AimPart] or { AIM.AimPart }) do
+		local partName = AIM.HeadOnly and "Head" or AIM.AimPart
+		for _, name in ipairs(PART_NAMES[partName] or { partName }) do
 			local p = char:FindFirstChild(name)
 			if p and p:IsA("BasePart") then
 				return p
@@ -3007,6 +3362,9 @@ local function setupAim()
 		if dist >= maxDist then return nil end
 
 		if not isVisible(cam, part, char) then
+			if AIM.HeadOnly then
+				return nil
+			end
 			local alt = nil
 			for _, n in ipairs(VISIBLE_PARTS) do
 				local p = char:FindFirstChild(n)
@@ -3064,14 +3422,68 @@ local function setupAim()
 
 	local function aimPosition(part)
 		local pos = part.Position
+		if part.Name == "Head" then
+			pos += Vector3.new(0, AIM.AimHeight, 0)
+		end
 		if AIM.Prediction > 0 then
-			pos += part.AssemblyLinearVelocity * AIM.Prediction
+			local model = part.Parent
+			local root = model and model:FindFirstChild("HumanoidRootPart")
+			pos += (root or part).AssemblyLinearVelocity * AIM.Prediction
 		end
 		return pos
 	end
 
+	local KNIFE_WORDS = { "knife", "blade", "katana", "sword", "dagger", "scythe", "axe", "machete", "melee" }
+	local knifeMode = false
+
+	local function heldKnife()
+		local char = player.Character
+		local tool = char and char:FindFirstChildOfClass("Tool")
+		if not tool then
+			return nil
+		end
+		if tool:GetAttribute("Melee") == true then
+			return tool
+		end
+		local name = string.lower(tool.Name)
+		for _, word in ipairs(KNIFE_WORDS) do
+			if string.find(name, word, 1, true) then
+				return tool
+			end
+		end
+		return nil
+	end
+
+	local function wantsKnife()
+		if not (hasPass and enabled and AIM.KnifeAim) or menuVisible then return false end
+		if AIM.KnifeHold and not isMobile and not holding then return false end
+		return aliveHumanoid(player.Character) ~= nil and heldKnife() ~= nil
+	end
+
+	local function getKnifeTarget(targets)
+		local myRoot = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+		if not myRoot then
+			return nil
+		end
+		local bestPart, bestTarget, bestDist = nil, nil, AIM.KnifeRange
+		for _, t in ipairs(targets) do
+			local char = t.char
+			if char.Parent and aliveHumanoid(char) and not char:FindFirstChildOfClass("ForceField")
+				and not (AIM.TeamCheck and isTeammate(t.plr)) then
+				local head = char:FindFirstChild("Head")
+				if head and head:IsA("BasePart") then
+					local d = (head.Position - myRoot.Position).Magnitude
+					if d < bestDist then
+						bestPart, bestTarget, bestDist = head, t, d
+					end
+				end
+			end
+		end
+		return bestPart, bestTarget
+	end
+
 	local function smoothAlpha(dt)
-		if AIM.InstantSnap then
+		if AIM.InstantSnap or knifeMode then
 			return 1
 		end
 		return 1 - (1 - math.clamp(AIM.Smoothness, 0.01, 1)) ^ (dt * 60)
@@ -3135,17 +3547,21 @@ local function setupAim()
 
 		local prevTarget = lockedTarget
 		lockedPart, lockedTarget = nil, nil
-		if wantsAim() then
+		knifeMode = wantsKnife()
+		if knifeMode then
+			lockedPart, lockedTarget = getKnifeTarget(targets)
+		elseif wantsAim() then
 			lockedPart, lockedTarget = getClosestTarget(cam, targets, prevTarget)
 		end
 		if not lockedPart then
 			prevWant, prevChar = nil, nil
 		end
+		player:SetAttribute("AimPoint", lockedPart and aimPosition(lockedPart) or nil)
 
 		if lockedTarget and AIM.ShowTargetInfo then
 			local myRoot = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
 			local d = myRoot and math.floor((lockedPart.Position - myRoot.Position).Magnitude + 0.5) or 0
-			targetInfo.Text = "Target: " .. lockedTarget.name .. "  •  " .. d .. " m"
+			targetInfo.Text = trf("Target: %s  •  %d m", lockedTarget.name, d)
 			targetInfo.Visible = true
 		else
 			targetInfo.Visible = false
@@ -3214,8 +3630,15 @@ local function setupAim()
 	RunService:BindToRenderStep("AimAutoShoot", Enum.RenderPriority.Last.Value + 1, function()
 		local cam = workspace.CurrentCamera
 		local shouldFire = false
+		local pause = AIM.AutoShootDelay
 
-		if cam and lockedPart and autoShootAllowed() and wantsAim() then
+		if cam and lockedPart and knifeMode then
+			local myRoot = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+			if AIM.KnifeAutoSwing and myRoot and (lockedPart.Position - myRoot.Position).Magnitude <= AIM.KnifeSwingRange then
+				shouldFire = true
+				pause = AIM.KnifeSwingDelay
+			end
+		elseif cam and lockedPart and autoShootAllowed() and wantsAim() then
 			local dir = (aimPosition(lockedPart) - cam.CFrame.Position).Unit
 			local dot = math.clamp(cam.CFrame.LookVector:Dot(dir), -1, 1)
 			shouldFire = math.deg(math.acos(dot)) <= AIM.AutoShootAngle
@@ -3223,7 +3646,7 @@ local function setupAim()
 
 		if shouldFire then
 			local now = os.clock()
-			if now - lastShot >= AIM.AutoShootDelay then
+			if now - lastShot >= pause then
 				if firing then
 					setTrigger(false)
 				end
@@ -3351,7 +3774,7 @@ for index, theme in ipairs(THEMES) do
 	end)
 	button.MouseButton1Click:Connect(function()
 		if setTheme(theme.Name) then
-			notify("Theme changed", theme.Name .. " is on now", 3)
+			notify("Theme changed", trf("%s is on now", theme.Name), 3)
 		end
 	end)
 
@@ -3363,13 +3786,17 @@ onTheme(function(instant)
 end)
 
 section(themesPage, "Extra")
-toggle(themesPage, nil, "Auto Theme", "Themes change every " .. CONFIG.AutoThemeDelay .. " seconds", false, function(enabled)
+local autoThemeToggle
+autoThemeToggle = toggle(themesPage, nil, "Auto Theme", "", false, function(enabled)
 	state.autoThemeEnabled = enabled
 	if enabled then
 		notify("Auto Theme enabled", "Sit back and watch the colors", 3)
 	else
-		notify("Auto Theme disabled", currentTheme.Name .. " stays on", 3)
+		notify("Auto Theme disabled", trf("%s stays on", currentTheme.Name), 3)
 	end
+end)
+onLanguage(function()
+	autoThemeToggle.SetDescription(trf("Themes change every %d seconds", CONFIG.AutoThemeDelay))
 end)
 
 task.spawn(function()
@@ -3386,20 +3813,71 @@ local infoKeysText = nil
 
 local function refreshKeyTexts()
 	homeStats[2].Text = CONFIG.ToggleKey.Name
-	homeHowText.Text = "Press " .. CONFIG.ToggleKey.Name .. " or the W button on the left to hide or show the menu. "
-		.. "Drag the window by its top bar. Aim and ESP are on their own tabs, colors on the Themes tab, menu settings on the Settings tab."
+	homeHowText.Text = trf(HOW_TO, CONFIG.ToggleKey.Name)
 	if infoKeysText then
-		infoKeysText.Text = CONFIG.ToggleKey.Name .. " or the W button on the left — hide / show the menu\n"
-			.. "— minimize, □ maximize, × hide\nDrag the window by its top bar, drag the W button anywhere"
+		infoKeysText.Text = trf(KEYS_TEXT, CONFIG.ToggleKey.Name)
 	end
 end
+table.insert(languageHooks, refreshKeyTexts)
 
 local function keyChanged(key)
 	refreshKeyTexts()
-	notify("Key changed", "New key: " .. key.Name, 3)
+	notify("Key changed", trf("New key: %s", key.Name), 3)
 end
 
 local settingsPage = createTab("Settings", "◉", "Menu look and keys")
+
+section(settingsPage, "Language")
+local languageGrid = create("Frame", {
+	Size = UDim2.new(1, 0, 0, 0),
+	AutomaticSize = Enum.AutomaticSize.Y,
+	BackgroundTransparency = 1,
+	LayoutOrder = nextOrder(),
+	Parent = settingsPage,
+})
+create("UIGridLayout", {
+	CellSize = UDim2.new(0.5, -6, 0, 46),
+	CellPadding = UDim2.fromOffset(12, 12),
+	SortOrder = Enum.SortOrder.LayoutOrder,
+	Parent = languageGrid,
+})
+local languageButtons = {}
+local function refreshLanguageButtons()
+	for code, item in pairs(languageButtons) do
+		local active = code == currentLanguage
+		tween(item.Stroke, 0.25, { Transparency = active and 0 or 0.85, Thickness = active and 2 or 1 })
+		tween(item.Button, 0.25, { BackgroundTransparency = active and 0.05 or 0.3 })
+	end
+end
+for index, language in ipairs(LANGUAGES) do
+	local button = create("TextButton", {
+		BackgroundColor3 = THEME.Card,
+		BackgroundTransparency = 0.3,
+		AutoButtonColor = false,
+		Text = "",
+		LayoutOrder = index,
+		Parent = languageGrid,
+	})
+	paint(button, "BackgroundColor3", "Card")
+	corner(button, 12)
+	local buttonStroke = stroke(button, 0.85, 1)
+	paint(buttonStroke, "Color", "Accent")
+	label({
+		Size = UDim2.fromScale(1, 1),
+		Text = language[2],
+		Font = FONT_BOLD,
+		TextSize = 15,
+		TextXAlignment = Enum.TextXAlignment.Center,
+		Parent = button,
+	})
+	button.MouseButton1Click:Connect(function()
+		if setLanguage(language[1]) then
+			notify("Language changed", language[2], 3)
+		end
+	end)
+	languageButtons[language[1]] = { Button = button, Stroke = buttonStroke }
+end
+onLanguage(refreshLanguageButtons)
 
 section(settingsPage, "Menu")
 toggle(settingsPage, nil, "Blur", "Blur the game behind the menu", CONFIG.Blur, function(enabled)
@@ -3428,26 +3906,29 @@ keybind(settingsPage, "Show / Hide Menu", "ToggleKey", keyChanged)
 local profilePage, profileTab = createTab("Profile", "●", "Your account")
 profileHeader(profilePage)
 local profileStats = statGrid(profilePage, {
-	{ player.AccountAge .. " days", "account age" },
+	{ trf("%d days", player.AccountAge), "account age" },
 	{ player.MembershipType == Enum.MembershipType.Premium and "Yes" or "No", "Premium" },
 	{ "00:00", "in menu" },
 })
+table.insert(languageHooks, function()
+	profileStats[1].Text = trf("%d days", player.AccountAge)
+end)
 
 local infoPage = createTab("Info", "■", "About the menu")
 section(infoPage, CONFIG.Title)
 local _, infoThemeText = paragraph(infoPage, CONFIG.Version, "")
-onTheme(function()
-	infoThemeText.Text = "Made for " .. player.Name .. "\nTheme: " .. THEME.Name
-end)
+local function refreshInfoTheme()
+	infoThemeText.Text = trf("Made for %s\nTheme: %s", player.Name, THEME.Name)
+end
+onTheme(refreshInfoTheme)
+table.insert(languageHooks, refreshInfoTheme)
 section(infoPage, "Controls")
 _, infoKeysText = paragraph(infoPage, "Keys and buttons", "")
 section(infoPage, "What's inside")
-paragraph(infoPage, "Menu", "A menu for your game: aim, ESP, themes, settings and your profile.\n"
-	.. "Aim assist, auto-shoot and saved settings — Aim tab (needs the GamePass)\n"
-	.. "Players through walls, names, distance, health — ESP tab\n"
-	.. #THEMES .. " themes and Auto Theme — Themes tab\n"
-	.. "Blur, transparency, border, notifications and the menu key — Settings tab\n"
-	.. "Your avatar, account age and time in the menu — Profile tab")
+local _, infoAboutText = paragraph(infoPage, "Menu", "")
+onLanguage(function()
+	infoAboutText.Text = trf(INFO_ABOUT, #THEMES)
+end)
 refreshKeyTexts()
 
 selectTab(tabs[1])
@@ -3463,7 +3944,7 @@ end)
 closeButton.MouseButton1Click:Connect(function()
 	resetCloseButton()
 	setMenuVisible(false)
-	notify("Menu hidden", "Press " .. CONFIG.ToggleKey.Name .. " or the W button on the left", 4)
+	notify("Menu hidden", trf("Press %s or the W button on the left", CONFIG.ToggleKey.Name), 4)
 end)
 
 profileCard.MouseButton1Click:Connect(function()
@@ -3714,7 +4195,7 @@ local function playIntro(onFinished)
 	local welcome = label({
 		Position = UDim2.fromOffset(0, 168),
 		Size = UDim2.new(1, 0, 0, 24),
-		Text = "Welcome, " .. player.Name .. "!",
+		Text = trf("Welcome, %s!", player.Name),
 		TextSize = 18,
 		TextXAlignment = Enum.TextXAlignment.Center,
 		MaxVisibleGraphemes = 0,
@@ -3823,7 +4304,7 @@ local function startMenu()
 	introDone = true
 	setMenuVisible(true)
 	task.delay(0.5, function()
-		notify("Welcome, " .. player.Name .. "!", "Press " .. CONFIG.ToggleKey.Name .. " to hide the menu", 5)
+		notify(trf("Welcome, %s!", player.Name), trf("Press %s to hide the menu", CONFIG.ToggleKey.Name), 5)
 	end)
 end
 
