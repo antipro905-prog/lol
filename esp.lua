@@ -1,5 +1,5 @@
 --[[
-	AimBot + ESP + Меню для Rivals Modded 100x
+	AimBot + ESP + Меню для Rivals Modded 100x  •  🎃 Хэллоуин-версия
 	Тип: LocalScript
 	Куда положить: StarterPlayer > StarterPlayerScripts
 
@@ -12,9 +12,21 @@
 	Настройки запоминаются сами:
 	  Как игрок настроил скрипт в меню, так он и включится в следующий раз.
 	  При самом первом включении меню открывается само — настрой всё под себя.
-	  Каждое изменение сохраняется через 1.5 с. Для этого в игре нужен
-	  серверный скрипт AimBotConfigServer (Script в ServerScriptService):
-	  LocalScript не может хранить данные после выхода — это делает сервер.
+	  Каждое изменение уходит на сервер через ~0.6 с и сразу при закрытии меню.
+	  Для этого в игре нужен серверный скрипт AimBotConfigServer
+	  (Script в ServerScriptService): LocalScript не может хранить данные
+	  после выхода — это делает сервер.
+
+	Почему раньше настройки не запоминались (исправлено):
+	  • Пустой или неудачный ответ сервера считался «первым включением»:
+	    скрипт открывал меню и через 1.5 с сохранял СТАНДАРТНЫЕ настройки
+	    поверх настоящих. Теперь «первое включение» сервер сообщает явно,
+	    а при ошибке хранилища скрипт ничего не сохраняет.
+	  • Сохранение шло только через 1.5–2.5 с после последнего изменения —
+	    кто выходил сразу после настройки, терял её. Теперь сохраняется
+	    быстрее и сразу при закрытии меню.
+	  • Сервер должен успеть записать данные, когда игрок выходит и когда
+	    сервер закрывается (BindToClose). Новый AimBotConfigServer это делает.
 
 	Команды (свой / враг):
 	  Скрипт ищет команду игрока по очереди: атрибуты и значения у игрока
@@ -61,26 +73,26 @@ local CONFIG = {
 	-- Аим
 	AimMode = "Override",      -- "Override" = режим Rivals, "Classic" = обычная камера Roblox
 	AimPart = "Head",          -- "Head", "UpperTorso" или "HumanoidRootPart"
-	FOV = 150,                 -- радиус круга захвата (пиксели)
+	FOV = 75,                 -- радиус круга захвата (пиксели)
 	Smoothness = 0.35,         -- скорость наводки: 0.05 = плавно, 1 = мгновенно
-	InstantSnap = false,       -- мгновенная наводка (прицел сразу на цели, без плавности)
+	InstantSnap = true,       -- мгновенная наводка (прицел сразу на цели, без плавности)
 	SpeedStep = 0.05,          -- насколько меняется скорость одним нажатием + / −
 	Prediction = 0,            -- упреждение для медленных снарядов, 0 = выкл
 	StickyTarget = true,       -- держать выбранную цель, а не прыгать между игроками
-	LockGrace = 0.3,           -- сколько секунд держать цель, если она на миг скрылась
+	LockGrace = 0,           -- сколько секунд держать цель, если она на миг скрылась
 	HoldToAim = true,          -- ПК: наводить только пока зажата ПКМ
 	HoldThroughWalls = true,   -- ПК: при зажатой ПКМ целиться и сквозь стены
 
 	-- Автострел
 	AutoShoot = "Phone",       -- "Off" = выкл, "Phone" = только телефон, "All" = везде
-	AutoShootAngle = 2,        -- стрелять, когда прицел ближе этого угла к цели (градусы)
-	AutoShootDelay = 0.12,     -- пауза между выстрелами (сек)
+	AutoShootAngle = 0.5,        -- стрелять, когда прицел ближе этого угла к цели (градусы)
+	AutoShootDelay = 0.03,     -- пауза между выстрелами (сек)
 
 	-- Проверки
 	TeamCheck = true,          -- не целиться в своих
 	TeamMode = "Auto",         -- "Auto" = определять команды сами, "Off" = все игроки враги
 	TeamAttribute = "Team",    -- своё имя атрибута/значения с командой (проверяется первым)
-	WallCheck = false,         -- false = целиться и сквозь стены, true = только в видимых
+	WallCheck = true,         -- false = целиться и сквозь стены, true = только в видимых
 	TargetNPC = false,         -- целиться и в ботов (модели с Humanoid без игрока)
 	ShowFOV = true,            -- показывать круг
 	ShowTargetInfo = true,     -- показывать сверху, в кого навёлся
@@ -121,20 +133,25 @@ if not hasPass then
 	hasPass = ok and owns
 end
 
+-- Хэллоуин: ночное фиолетовое небо, тыква, слизь, кость и кровь
 local COLORS = {
-	bg = Color3.fromRGB(14, 16, 22),
-	bg2 = Color3.fromRGB(24, 28, 38),
-	panel = Color3.fromRGB(27, 31, 41),
-	panelHover = Color3.fromRGB(36, 41, 54),
-	stroke = Color3.fromRGB(50, 57, 74),
-	accent = Color3.fromRGB(64, 196, 108),
-	off = Color3.fromRGB(58, 64, 80),
-	text = Color3.fromRGB(236, 239, 244),
-	sub = Color3.fromRGB(138, 147, 166),
-	red = Color3.fromRGB(210, 64, 64),
-	gold = Color3.fromRGB(236, 172, 44),
-	enemy = Color3.fromRGB(255, 70, 70),
-	team = Color3.fromRGB(70, 150, 255),
+	bg = Color3.fromRGB(14, 8, 20),           -- полночь
+	bg2 = Color3.fromRGB(38, 18, 50),         -- сумеречный фиолетовый
+	panel = Color3.fromRGB(30, 18, 40),
+	panelHover = Color3.fromRGB(48, 28, 62),
+	stroke = Color3.fromRGB(86, 50, 104),
+	accent = Color3.fromRGB(255, 122, 26),    -- тыква
+	accent2 = Color3.fromRGB(255, 186, 64),   -- свеча
+	slime = Color3.fromRGB(140, 236, 72),     -- ведьмина слизь
+	slimeDark = Color3.fromRGB(70, 150, 44),
+	off = Color3.fromRGB(64, 46, 80),
+	text = Color3.fromRGB(246, 236, 218),     -- кость
+	sub = Color3.fromRGB(176, 152, 186),
+	ink = Color3.fromRGB(24, 10, 14),         -- тёмный текст на оранжевом
+	red = Color3.fromRGB(190, 28, 44),        -- кровь
+	gold = Color3.fromRGB(255, 186, 64),
+	enemy = Color3.fromRGB(255, 96, 36),
+	team = Color3.fromRGB(130, 230, 255),     -- призрак
 }
 
 --==================== ПОМОЩНИКИ ИНТЕРФЕЙСА ====================--
@@ -160,6 +177,15 @@ local function tween(inst, props, time, style, dir)
 		time or 0.15,
 		style or Enum.EasingStyle.Quad,
 		dir or Enum.EasingDirection.Out
+	), props)
+	t:Play()
+	return t
+end
+
+-- Бесконечная анимация туда-обратно (пульс, покачивание)
+local function loopTween(inst, props, time)
+	local t = TweenService:Create(inst, TweenInfo.new(
+		time, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true
 	), props)
 	t:Play()
 	return t
@@ -201,7 +227,8 @@ circle.AnchorPoint = Vector2.new(0.5, 0.5)
 circle.BackgroundTransparency = 1
 circle.Parent = gui
 Instance.new("UICorner", circle).CornerRadius = UDim.new(1, 0)
-outline(circle, Color3.fromRGB(255, 255, 255), 1.5, 0.35)
+local circleStroke = outline(circle, COLORS.accent, 2, 0.25)
+loopTween(circleStroke, { Transparency = 0.6 }, 1.1)
 
 local targetInfo = Instance.new("TextLabel")
 targetInfo.Name = "TargetInfo"
@@ -216,7 +243,7 @@ targetInfo.TextColor3 = COLORS.enemy
 targetInfo.Visible = false
 targetInfo.Parent = gui
 corner(targetInfo, 8)
-outline(targetInfo, COLORS.enemy, 1, 0.6)
+outline(targetInfo, COLORS.accent, 1.5, 0.35)
 
 local function makeSideButton(name, posY)
 	local b = Instance.new("TextButton")
@@ -227,17 +254,17 @@ local function makeSideButton(name, posY)
 	b.Font = Enum.Font.GothamBold
 	b.TextSize = 15
 	b.TextColor3 = Color3.new(1, 1, 1)
-	b.BackgroundColor3 = COLORS.panel
+	b.BackgroundColor3 = COLORS.bg2
 	b.AutoButtonColor = true
 	b.Parent = gui
 	corner(b, 10)
-	outline(b, COLORS.stroke, 1, 0.1)
+	outline(b, COLORS.accent, 1.5, 0.45)
 	return b
 end
 
 local toggleBtn = makeSideButton("AimToggle", 0)
 local menuBtn = makeSideButton("MenuButton", 52)
-menuBtn.Text = isMobile and "МЕНЮ" or ("МЕНЮ (" .. keyName(CONFIG.MenuKey) .. ")")
+menuBtn.Text = isMobile and "🎃 МЕНЮ" or ("🎃 МЕНЮ (" .. keyName(CONFIG.MenuKey) .. ")")
 
 local refreshers = {}
 local function refreshAll()
@@ -256,7 +283,7 @@ local function updateUI()
 		toggleBtn.BackgroundColor3 = COLORS.gold
 	elseif enabled then
 		toggleBtn.Text = "AIM: ВКЛ" .. suffix
-		toggleBtn.BackgroundColor3 = Color3.fromRGB(40, 160, 75)
+		toggleBtn.BackgroundColor3 = COLORS.slimeDark
 	else
 		toggleBtn.Text = "AIM: ВЫКЛ" .. suffix
 		toggleBtn.BackgroundColor3 = COLORS.red
@@ -293,7 +320,7 @@ speedInfo.BackgroundColor3 = COLORS.bg
 speedInfo.BackgroundTransparency = 0.15
 speedInfo.Font = Enum.Font.GothamBold
 speedInfo.TextSize = 14
-speedInfo.TextColor3 = COLORS.accent
+speedInfo.TextColor3 = COLORS.slime
 speedInfo.Visible = false
 speedInfo.Parent = gui
 corner(speedInfo, 8)
@@ -314,7 +341,7 @@ local function showSpeed()
 	speedShowId += 1
 	local id = speedShowId
 	speedInfo.Text = speedText()
-	speedInfo.TextColor3 = isInstant() and COLORS.gold or COLORS.accent
+	speedInfo.TextColor3 = isInstant() and COLORS.accent or COLORS.slime
 	speedInfo.Visible = true
 	task.delay(1.5, function()
 		if speedShowId == id then
@@ -377,7 +404,7 @@ table.insert(refreshers, function()
 	speedUpBtn.Visible = show
 	speedDownBtn.Visible = show
 	snapBtn.Visible = show
-	snapBtn.BackgroundColor3 = CONFIG.InstantSnap and COLORS.gold or COLORS.panel
+	snapBtn.BackgroundColor3 = CONFIG.InstantSnap and COLORS.accent or COLORS.bg2
 end)
 
 --==================== КОНФИГ (ядро) ====================--
@@ -399,6 +426,13 @@ local CHOICES = {
 	AimPart = { Head = true, UpperTorso = true, HumanoidRootPart = true },
 	AutoShoot = { Phone = true, All = true, Off = true },
 	TeamMode = { Auto = true, Off = true },
+}
+
+-- Пределы для чисел (как у ползунков), чтобы кривой код не ломал аим
+local RANGES = {
+	FOV = { 30, 400 }, Smoothness = { 0.05, 1 }, Prediction = { 0, 0.3 },
+	LockGrace = { 0, 1 }, AutoShootAngle = { 0.5, 10 }, AutoShootDelay = { 0.03, 0.5 },
+	ESPMaxDistance = { 50, 3000 }, SpeedStep = { 0.01, 0.5 },
 }
 
 -- Настройки -> код вида "enabled=1;AimMode=Override;FOV=150;..."
@@ -433,7 +467,12 @@ local function importCode(code)
 				CONFIG[k] = (v == "1" or v == "true")
 				applied += 1
 			elseif type(def) == "number" and tonumber(v) then
-				CONFIG[k] = tonumber(v)
+				local n = tonumber(v)
+				local r = RANGES[k]
+				if r then
+					n = math.clamp(n, r[1], r[2])
+				end
+				CONFIG[k] = n
 				applied += 1
 			elseif type(def) == "string" and (not CHOICES[k] or CHOICES[k][v]) then
 				CONFIG[k] = v
@@ -521,9 +560,13 @@ local function setStatus(text, color)
 end
 
 -- Автосохранение: любое изменение настроек отмечает время,
--- а через 1.5 с после последнего изменения настройки уходят на сервер.
-local persistReady = false   -- true, когда сохранённые настройки уже загружены
+-- а через SAVE_DELAY после последнего изменения настройки уходят на сервер.
+-- persistReady = true только после УСПЕШНОЙ загрузки: до этого (и при ошибке
+-- хранилища) ничего не сохраняем, чтобы не затереть настоящие настройки.
+local SAVE_DELAY = 0.6
+local persistReady = false
 local dirtyAt = nil
+local flushSave = function() end  -- сохранить прямо сейчас (задаётся ниже)
 onSettingsChanged = function()
 	if persistReady then
 		dirtyAt = os.clock()
@@ -535,15 +578,20 @@ local menu = Instance.new("Frame")
 menu.Name = "Menu"
 menu.AnchorPoint = Vector2.new(0.5, 0.5)
 menu.Position = UDim2.fromScale(0.5, 0.5)
-menu.Size = UDim2.fromOffset(380, 520)
+menu.Size = UDim2.fromOffset(380, 540)
 menu.BackgroundColor3 = Color3.new(1, 1, 1)
 menu.Visible = false
 menu.ZIndex = 10
 menu.Parent = gui
 corner(menu, 14)
-outline(menu, COLORS.accent, 1.5, 0.55)
+local menuStroke = outline(menu, COLORS.accent, 2, 0.2)
+loopTween(menuStroke, { Transparency = 0.65 }, 1.6)  -- тыква «дышит»
 local bgGradient = Instance.new("UIGradient")
-bgGradient.Color = ColorSequence.new(COLORS.bg2, COLORS.bg)
+bgGradient.Color = ColorSequence.new({
+	ColorSequenceKeypoint.new(0, COLORS.bg2),
+	ColorSequenceKeypoint.new(0.45, Color3.fromRGB(22, 11, 30)),
+	ColorSequenceKeypoint.new(1, COLORS.bg),
+})
 bgGradient.Rotation = 90
 bgGradient.Parent = menu
 
@@ -581,36 +629,47 @@ titleBar.Parent = menu
 local logo = Instance.new("TextLabel")
 logo.Position = UDim2.fromOffset(14, 12)
 logo.Size = UDim2.fromOffset(34, 34)
-logo.BackgroundColor3 = COLORS.accent
+logo.BackgroundColor3 = COLORS.bg
 logo.Font = Enum.Font.GothamBlack
-logo.TextSize = 18
-logo.Text = "R"
-logo.TextColor3 = Color3.new(1, 1, 1)
+logo.TextSize = 22
+logo.Text = "🎃"
+logo.TextColor3 = COLORS.accent
 logo.ZIndex = 12
 logo.Parent = titleBar
-corner(logo, 10)
+Instance.new("UICorner", logo).CornerRadius = UDim.new(1, 0)
+local logoStroke = outline(logo, COLORS.accent, 2, 0.1)
+loopTween(logoStroke, { Color = COLORS.accent2 }, 0.9)  -- мерцает, как свеча
 
 local title = Instance.new("TextLabel")
 title.BackgroundTransparency = 1
-title.Position = UDim2.fromOffset(58, 11)
-title.Size = UDim2.new(1, -110, 0, 20)
+title.Position = UDim2.fromOffset(58, 9)
+title.Size = UDim2.new(1, -150, 0, 24)
 title.Font = Enum.Font.GothamBlack
-title.TextSize = 17
-title.TextColor3 = COLORS.text
+title.TextSize = 22
+title.TextColor3 = COLORS.accent
 title.TextXAlignment = Enum.TextXAlignment.Left
-title.Text = "RIVALS MODDED"
+title.Text = "Halloween Rivals"
+-- Жуткий шрифт Creepster из встроенных шрифтов Roblox (если нет — останется Gotham)
+pcall(function()
+	title.FontFace = Font.new("rbxasset://fonts/families/Creepster.json")
+end)
+local titleGlow = Instance.new("UIStroke")
+titleGlow.ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual
+titleGlow.Color = Color3.fromRGB(120, 30, 0)
+titleGlow.Thickness = 1
+titleGlow.Parent = title
 title.ZIndex = 12
 title.Parent = titleBar
 
 local subtitle = Instance.new("TextLabel")
 subtitle.BackgroundTransparency = 1
-subtitle.Position = UDim2.fromOffset(58, 31)
+subtitle.Position = UDim2.fromOffset(58, 33)
 subtitle.Size = UDim2.new(1, -110, 0, 16)
 subtitle.Font = Enum.Font.GothamMedium
 subtitle.TextSize = 12
 subtitle.TextColor3 = COLORS.sub
 subtitle.TextXAlignment = Enum.TextXAlignment.Left
-subtitle.Text = "Аим  •  ESP  •  Конфиг"
+subtitle.Text = "Аим  •  ESP  •  Конфиг   — сладость или гадость?"
 subtitle.ZIndex = 12
 subtitle.Parent = titleBar
 
@@ -628,6 +687,25 @@ closeBtn.ZIndex = 12
 closeBtn.Parent = titleBar
 corner(closeBtn, 8)
 hoverable(closeBtn, COLORS.panel, COLORS.red)
+outline(closeBtn, COLORS.stroke, 1, 0.2)
+
+-- Летучие мыши покачиваются возле крестика
+local function makeBat(x, y, size, time)
+	local bat = Instance.new("TextLabel")
+	bat.BackgroundTransparency = 1
+	bat.AnchorPoint = Vector2.new(0.5, 0.5)
+	bat.Position = UDim2.new(1, x, 0, y)
+	bat.Size = UDim2.fromOffset(size + 6, size + 6)
+	bat.Font = Enum.Font.GothamBold
+	bat.TextSize = size
+	bat.Text = "🦇"
+	bat.TextTransparency = 0.15
+	bat.ZIndex = 12
+	bat.Parent = titleBar
+	loopTween(bat, { Position = UDim2.new(1, x + 3, 0, y - 5), Rotation = 12 }, time)
+end
+makeBat(-64, 18, 16, 1.3)
+makeBat(-88, 38, 11, 1.7)
 
 -- Линия под заголовком, тающая к краям
 local divider = Instance.new("Frame")
@@ -645,14 +723,55 @@ divGradient.Transparency = NumberSequence.new({
 })
 divGradient.Parent = divider
 
+local DRIPS = { { 0.12, 8 }, { 0.23, 13 }, { 0.36, 6 }, { 0.5, 11 }, { 0.63, 7 }, { 0.77, 14 }, { 0.88, 9 } }
+for i, d in ipairs(DRIPS) do
+	local drip = Instance.new("Frame")
+	drip.AnchorPoint = Vector2.new(0.5, 0)
+	drip.Position = UDim2.new(d[1], 0, 0, 0)
+	drip.Size = UDim2.fromOffset(5, d[2])
+	drip.BackgroundColor3 = (i % 3 == 0) and COLORS.slime or COLORS.accent
+	drip.BackgroundTransparency = 0.15
+	drip.BorderSizePixel = 0
+	drip.ZIndex = 11
+	drip.Parent = divider
+	Instance.new("UICorner", drip).CornerRadius = UDim.new(1, 0)
+	loopTween(drip, { Size = UDim2.fromOffset(5, d[2] + 4) }, 1.2 + i * 0.21)
+end
+
+-- Паутина в углу и свеча
+local web = Instance.new("TextLabel")
+web.BackgroundTransparency = 1
+web.AnchorPoint = Vector2.new(0, 1)
+web.Position = UDim2.new(0, 4, 1, -4)
+web.Size = UDim2.fromOffset(34, 34)
+web.Font = Enum.Font.GothamBold
+web.TextSize = 28
+web.Text = "🕸"
+web.TextTransparency = 0.45
+web.ZIndex = 11
+web.Parent = menu
+
+local candle = Instance.new("TextLabel")
+candle.BackgroundTransparency = 1
+candle.AnchorPoint = Vector2.new(1, 1)
+candle.Position = UDim2.new(1, -6, 1, -6)
+candle.Size = UDim2.fromOffset(30, 30)
+candle.Font = Enum.Font.GothamBold
+candle.TextSize = 22
+candle.Text = "🕯"
+candle.ZIndex = 11
+candle.Parent = menu
+loopTween(candle, { TextTransparency = 0.4 }, 0.45)
+
 -- Вкладки (переключатель-сегмент)
 local tabBar = Instance.new("Frame")
-tabBar.Position = UDim2.fromOffset(14, 70)
+tabBar.Position = UDim2.fromOffset(14, 84)
 tabBar.Size = UDim2.new(1, -28, 0, 36)
 tabBar.BackgroundColor3 = COLORS.panel
 tabBar.ZIndex = 11
 tabBar.Parent = menu
 corner(tabBar, 10)
+outline(tabBar, COLORS.stroke, 1, 0.3)
 local tabPadding = Instance.new("UIPadding")
 tabPadding.PaddingTop = UDim.new(0, 4)
 tabPadding.PaddingBottom = UDim.new(0, 4)
@@ -675,7 +794,7 @@ local function selectTab(name)
 		page.Visible = on
 		tween(tabButtons[n], {
 			BackgroundTransparency = on and 0 or 1,
-			TextColor3 = on and Color3.new(1, 1, 1) or COLORS.sub,
+			TextColor3 = on and COLORS.ink or COLORS.sub,
 		})
 	end
 end
@@ -697,8 +816,8 @@ local function makePage(name, label)
 	corner(btn, 7)
 
 	local page = Instance.new("ScrollingFrame")
-	page.Position = UDim2.fromOffset(14, 116)
-	page.Size = UDim2.new(1, -28, 1, -158)
+	page.Position = UDim2.fromOffset(14, 130)
+	page.Size = UDim2.new(1, -28, 1, -174)
 	page.BackgroundTransparency = 1
 	page.BorderSizePixel = 0
 	page.ScrollBarThickness = 3
@@ -728,9 +847,9 @@ end
 -- Подсказка по клавишам внизу окна
 local footer = Instance.new("TextLabel")
 footer.BackgroundTransparency = 1
-footer.AnchorPoint = Vector2.new(0, 1)
-footer.Position = UDim2.new(0, 14, 1, -8)
-footer.Size = UDim2.new(1, -28, 0, 28)
+footer.AnchorPoint = Vector2.new(0.5, 1)
+footer.Position = UDim2.new(0.5, 0, 1, -8)
+footer.Size = UDim2.new(1, -90, 0, 28)
 footer.Font = Enum.Font.GothamMedium
 footer.TextSize = 11
 footer.TextWrapped = true
@@ -777,6 +896,7 @@ local function makeRow(height)
 	row.ZIndex = 11
 	row.Parent = currentPage
 	corner(row, 9)
+	outline(row, COLORS.stroke, 1, 0.55)
 	hoverable(row, COLORS.panel, COLORS.panelHover)
 	return row
 end
@@ -805,7 +925,7 @@ local function makeHeader(text)
 	l.Size = UDim2.new(1, -12, 1, 0)
 	l.Font = Enum.Font.GothamBold
 	l.TextSize = 12
-	l.TextColor3 = COLORS.sub
+	l.TextColor3 = COLORS.accent2
 	l.TextXAlignment = Enum.TextXAlignment.Left
 	l.Text = string.upper(text)
 	l.ZIndex = 12
@@ -829,7 +949,7 @@ local function makeToggle(text, key)
 	knob.AnchorPoint = Vector2.new(0, 0.5)
 	knob.Position = UDim2.new(0, 3, 0.5, 0)
 	knob.Size = UDim2.fromOffset(18, 18)
-	knob.BackgroundColor3 = Color3.new(1, 1, 1)
+	knob.BackgroundColor3 = COLORS.text
 	knob.ZIndex = 13
 	knob.Parent = sw
 	Instance.new("UICorner", knob).CornerRadius = UDim.new(1, 0)
@@ -888,16 +1008,19 @@ local function makeSlider(text, key, min, max, step, decimals, suffix)
 	Instance.new("UICorner", bar).CornerRadius = UDim.new(1, 0)
 
 	local fill = Instance.new("Frame")
-	fill.BackgroundColor3 = COLORS.accent
+	fill.BackgroundColor3 = Color3.new(1, 1, 1)
 	fill.BorderSizePixel = 0
 	fill.ZIndex = 13
 	fill.Parent = bar
 	Instance.new("UICorner", fill).CornerRadius = UDim.new(1, 0)
+	local fillGradient = Instance.new("UIGradient")
+	fillGradient.Color = ColorSequence.new(COLORS.red, COLORS.accent)
+	fillGradient.Parent = fill
 
 	local knob = Instance.new("Frame")
 	knob.AnchorPoint = Vector2.new(0.5, 0.5)
 	knob.Size = UDim2.fromOffset(16, 16)
-	knob.BackgroundColor3 = Color3.new(1, 1, 1)
+	knob.BackgroundColor3 = COLORS.text
 	knob.ZIndex = 14
 	knob.Parent = bar
 	Instance.new("UICorner", knob).CornerRadius = UDim.new(1, 0)
@@ -1097,7 +1220,7 @@ local function makeSettingsList()
 end
 
 --------- Вкладка АИМ ---------
-currentPage = makePage("aim", "Аим")
+currentPage = makePage("aim", "🎃 Аим")
 makeHeader("Основное")
 makeToggle("Аим включён", "enabled")
 makeChoice("Режим камеры", "AimMode", {
@@ -1144,8 +1267,8 @@ makeToggle("Показывать круг FOV", "ShowFOV")
 makeToggle("Показывать цель сверху", "ShowTargetInfo")
 
 --------- Вкладка ESP ---------
-currentPage = makePage("esp", "ESP")
-makeHeader("Где находятся игроки")
+currentPage = makePage("esp", "👻 ESP")
+makeHeader("Где бродят игроки")
 makeToggle("ESP включён", "ESP")
 makeToggle("Подсветка сквозь стены", "ESPHighlight")
 makeToggle("Ники", "ESPNames")
@@ -1156,7 +1279,7 @@ makeToggle("Показывать своих", "ESPTeammates")
 makeSlider("Макс. дистанция", "ESPMaxDistance", 50, 3000, 50, 0, " м")
 
 --------- Вкладка КОНФИГ ---------
-currentPage = makePage("cfg", "Конфиг")
+currentPage = makePage("cfg", "🕸 Конфиг")
 makeHeader("Сохранение")
 configStatus = makeHint("Загрузка твоих настроек…")
 configStatus.Font = Enum.Font.GothamBold
@@ -1167,7 +1290,7 @@ makeHeader("Текущие настройки")
 makeSettingsList()
 
 makeHeader("Сброс")
-makeButton("Сбросить к стандартным настройкам", COLORS.red, function()
+makeButton("🦇  Сбросить к стандартным настройкам", COLORS.red, function()
 	for _, k in ipairs(SAVE_KEYS) do
 		CONFIG[k] = DEFAULTS[k]
 	end
@@ -1191,6 +1314,7 @@ local function setMenu(open)
 		tween(uiScale, { Scale = baseScale }, 0.2, Enum.EasingStyle.Back)
 		refreshAll()
 	else
+		task.spawn(flushSave)
 		local t = tween(uiScale, { Scale = baseScale * 0.9 }, 0.12)
 		t.Completed:Connect(function()
 			if not menuOpen then
@@ -1263,6 +1387,7 @@ toast.TextSize = 14
 toast.Visible = false
 toast.Parent = gui
 corner(toast, 8)
+outline(toast, COLORS.accent, 1.5, 0.4)
 local toastPad = Instance.new("UIPadding")
 toastPad.PaddingLeft = UDim.new(0, 14)
 toastPad.PaddingRight = UDim.new(0, 14)
@@ -1282,57 +1407,85 @@ local function showToast(text, color, seconds)
 	end)
 end
 
+local saveRemote = nil   -- RemoteFunction, появляется после успешной загрузки
+local lastSaved = nil    -- код, который сервер уже принял
+local saveBusy = false
+
+local function saveNow()
+	if not (persistReady and saveRemote) or saveBusy then return end
+	local code = exportCode()
+	if code == lastSaved then
+		dirtyAt = nil
+		return
+	end
+	saveBusy = true
+	dirtyAt = nil -- изменения во время запроса снова отметят dirtyAt
+	local ok, saved = pcall(saveRemote.InvokeServer, saveRemote, "save", code)
+	saveBusy = false
+	if ok and saved == true then
+		lastSaved = code
+		setStatus("🎃 Сохранено в " .. os.date("%H:%M") .. " — при следующем входе настройки применятся сами", COLORS.slime)
+	else
+		dirtyAt = os.clock() + 2 -- повторим через пару секунд
+		setStatus("Не удалось сохранить, пробую ещё раз…", COLORS.red)
+	end
+end
+flushSave = saveNow
+
 task.spawn(function()
-	local remote = ReplicatedStorage:WaitForChild("AimBotConfig", 8)
-	if not remote then
+	local remote = ReplicatedStorage:WaitForChild("AimBotConfig", 15)
+	if not (remote and remote:IsA("RemoteFunction")) then
 		setStatus("Настройки не запомнятся после выхода: в игре нет скрипта AimBotConfigServer", COLORS.gold)
 		return
 	end
 
-	local ok, res = pcall(function()
-		return remote:InvokeServer("load")
-	end)
-	if not (ok and type(res) == "table" and res.ok) then
-		setStatus("Хранилище недоступно — настройки не запомнятся. В Studio включи доступ к API (см. серверный скрипт)", COLORS.red)
+	-- Загружаем с повторами. Ошибка ≠ «первое включение»!
+	local res
+	for attempt = 1, 5 do
+		local ok, r = pcall(remote.InvokeServer, remote, "load")
+		if ok and type(r) == "table" then
+			res = r
+			if r.ok or r.fatal then break end
+		end
+		setStatus(string.format("Загрузка твоих настроек… (попытка %d из 5)", attempt + 1), COLORS.sub)
+		task.wait(2)
+	end
+
+	if not (res and res.ok) then
+		-- Хранилище недоступно: ничего не сохраняем, чтобы не затереть твои настройки
+		setStatus((res and res.reason) or "Хранилище не отвечает — настройки в этот раз не запомнятся", COLORS.red)
 		return
 	end
 
-	local lastSaved
-	if type(res.code) == "string" and res.code ~= "" then
+	saveRemote = remote
+	local code = type(res.code) == "string" and res.code or ""
+
+	if not res.new and code ~= "" then
 		-- Не первое включение: ставим то, как игрок настроил в прошлый раз
-		importCode(res.code)
+		importCode(code)
 		applyConfig()
-		lastSaved = exportCode()
-		setStatus("Твои настройки загружены — как ты настроил в прошлый раз", COLORS.accent)
-		showToast("Твои настройки загружены", COLORS.accent, 3)
+		lastSaved = code
+		persistReady = true
+		if exportCode() ~= lastSaved then
+			dirtyAt = os.clock() -- код от старой версии: допишем новые параметры
+		end
+		setStatus("🎃 Твои настройки загружены — как ты настроил в прошлый раз", COLORS.slime)
+		showToast("🎃 Твои настройки загружены", COLORS.slime, 3)
 	else
 		-- Первое включение: открываем меню, чтобы игрок настроил всё под себя.
-		-- Сразу сохраняем, чтобы следующее включение уже не считалось первым.
+		-- Сразу сохраняем стандартные, чтобы следующее включение не считалось первым.
 		lastSaved = ""
+		persistReady = true
 		dirtyAt = os.clock()
-		setStatus("Первое включение: настрой всё под себя — скрипт это запомнит", COLORS.gold)
-		showToast("Первое включение: настрой аим под себя — скрипт запомнит настройки", COLORS.gold, 6)
+		setStatus("👻 Первое включение: настрой всё под себя — скрипт это запомнит", COLORS.gold)
+		showToast("👻 Первое включение: настрой аим под себя — скрипт запомнит", COLORS.gold, 6)
 		setMenu(true)
 	end
-	persistReady = true
 
 	while true do
-		task.wait(1)
-		if dirtyAt and os.clock() - dirtyAt > 1.5 then
-			dirtyAt = nil
-			local code = exportCode()
-			if code ~= lastSaved then
-				local okSave, saved = pcall(function()
-					return remote:InvokeServer("save", code)
-				end)
-				if okSave and saved then
-					lastSaved = code
-					setStatus("Сохранено в " .. os.date("%H:%M") .. " — при следующем включении настройки применятся сами", COLORS.accent)
-				else
-					dirtyAt = os.clock() -- повторим через пару секунд
-					setStatus("Не удалось сохранить, пробую ещё раз", COLORS.red)
-				end
-			end
+		task.wait(0.25)
+		if dirtyAt and os.clock() - dirtyAt >= SAVE_DELAY then
+			saveNow()
 		end
 	end
 end)
@@ -1894,7 +2047,7 @@ RunService:BindToRenderStep("AimBotMain", Enum.RenderPriority.Camera.Value + 1, 
 	if lockedTarget and CONFIG.ShowTargetInfo then
 		local myRoot = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
 		local d = myRoot and math.floor((lockedPart.Position - myRoot.Position).Magnitude + 0.5) or 0
-		targetInfo.Text = "Цель: " .. lockedTarget.name .. "  •  " .. d .. " м"
+		targetInfo.Text = "💀 Цель: " .. lockedTarget.name .. "  •  " .. d .. " м"
 		targetInfo.Visible = true
 	else
 		targetInfo.Visible = false
