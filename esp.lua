@@ -3,31 +3,37 @@
 	Тип: LocalScript
 	Куда положить: StarterPlayer > StarterPlayerScripts
 
-	ПК: зажми F — навестись. Q — аим вкл/выкл. M — меню.
-	    + / − — быстрее / плавнее наводка. X — мгновенная наводка вкл/выкл.
-	Телефон: кнопки «−», «⚡», «+» под кнопкой меню.
+	ПК:
+	  F — аим вкл/выкл.  G — меню.
+	  + / − — быстрее / плавнее наводка.  X — мгновенная наводка вкл/выкл.
+	  ПКМ (зажать) — навестись на ближайшего врага, в том числе сквозь стены.
+	Телефон: кнопки AIM, МЕНЮ и «−  MAX  +» справа.
+
+	Автонастройка:
+	  В меню, вкладка «Конфиг», показаны все текущие настройки и их код.
+	  Скопируй код и вставь его в CONFIG.Preset ниже — при каждом запуске
+	  скрипт сам выставит эти параметры.
+
+	Команды (свой / враг):
+	  Скрипт ищет команду игрока по очереди: атрибуты и значения у игрока
+	  и персонажа (Team, TeamName, TeamId, Side…), leaderstats, Teams, TeamColor.
+	  Если все игроки в одной команде (лобби, каждый за себя) — своих нет.
+	  Во вкладке «Аим» → «Проверки» видно, какую команду скрипт нашёл.
+	  Если в игре своё имя поля с командой — впиши его в CONFIG.TeamAttribute.
 
 	Почему обычный аим не работал в Rivals:
 	  1) Камера Rivals каждый кадр сама ставит свой поворот и перебивает наш.
 	     Режим "Rivals" ставит камеру ПОСЛЕ их скрипта (приоритет Last).
 	  2) Модель оружия (viewmodel) лежит в камере, и проверка стен
 	     упиралась в неё. Теперь камера, прозрачные и проходимые детали игнорируются.
-	  3) Если все игроки в одной команде Teams (например лобби), проверка
-	     команды отсекала всех. Теперь команды учитываются, только если их больше одной,
-	     либо по атрибуту игрока (CONFIG.TeamAttribute).
 
-	Исправления «кривого» аима:
-	  4) Прицел отставал от бегущего врага: плавность тянула к тому месту,
-	     где цель была раньше. Теперь движение цели отслеживается сразу,
-	     а сглаживается только ошибка наводки — прицел не волочится сзади.
-	  5) Цель перескакивала между игроками каждый кадр, если они рядом.
-	     Теперь прицел держит выбранную цель (StickyTarget), пока она в круге.
-	  6) На R6-персонажах (нет UpperTorso) режим «Торс» целился в голову.
-	     Теперь для R6 берётся Torso.
-	  7) Прицел больше не дрожит у самой цели: в пределах доли градуса
-	     он встаёт ровно на точку.
-	  8) Цель не удерживалась: в режиме Rivals она выбиралась по камере игры,
-	     а не по реальному прицелу. Теперь выбирается по прицелу, держится
+	Исправления аима:
+	  3) Прицел не отстаёт от бегущего врага: движение цели отслеживается сразу,
+	     а сглаживается только ошибка наводки.
+	  4) Прицел держит выбранную цель (StickyTarget), а не прыгает между игроками.
+	  5) На R6-персонажах режим «Торс» берёт Torso.
+	  6) У самой цели прицел встаёт ровно на точку, без дрожи.
+	  7) В режиме Rivals цель выбирается по реальному прицелу, держится
 	     ещё LockGrace секунд после укрытия и ищет видимую часть тела.
 
 	Автострел (по умолчанию только на телефоне): стреляет сам,
@@ -40,13 +46,18 @@ local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local MarketplaceService = game:GetService("MarketplaceService")
 local TweenService = game:GetService("TweenService")
-local Teams = game:GetService("Teams")
 
 local player = Players.LocalPlayer
 
 --==================== НАСТРОЙКИ ====================--
+-- Это значения по умолчанию. То, что игрок поменял в меню,
+-- сохраняется и при следующем входе загружается само.
 local CONFIG = {
 	GamePassId = 0,            -- ID геймпасса (0 = бесплатно, для теста)
+
+	-- Автонастройка: вставь сюда код из меню (вкладка «Конфиг»),
+	-- и при каждом запуске скрипт сам применит эти настройки. "" = не применять.
+	Preset = "",
 
 	-- Аим
 	AimMode = "Override",      -- "Override" = режим Rivals, "Classic" = обычная камера Roblox
@@ -58,18 +69,22 @@ local CONFIG = {
 	Prediction = 0,            -- упреждение для медленных снарядов, 0 = выкл
 	StickyTarget = true,       -- держать выбранную цель, а не прыгать между игроками
 	LockGrace = 0.3,           -- сколько секунд держать цель, если она на миг скрылась
+	HoldToAim = true,          -- ПК: наводить только пока зажата ПКМ
+	HoldThroughWalls = true,   -- ПК: при зажатой ПКМ целиться и сквозь стены
 
 	-- Автострел
 	AutoShoot = "Phone",       -- "Off" = выкл, "Phone" = только телефон, "All" = везде
 	AutoShootAngle = 2,        -- стрелять, когда прицел ближе этого угла к цели (градусы)
 	AutoShootDelay = 0.12,     -- пауза между выстрелами (сек)
+
+	-- Проверки
 	TeamCheck = true,          -- не целиться в своих
-	TeamAttribute = "Team",    -- атрибут игрока с командой (если команды сделаны атрибутом)
-	WallCheck = true,          -- не целиться сквозь стены
+	TeamMode = "Auto",         -- "Auto" = определять команды сами, "Off" = все игроки враги
+	TeamAttribute = "Team",    -- своё имя атрибута/значения с командой (проверяется первым)
+	WallCheck = false,         -- false = целиться и сквозь стены, true = только в видимых
 	TargetNPC = false,         -- целиться и в ботов (модели с Humanoid без игрока)
 	ShowFOV = true,            -- показывать круг
 	ShowTargetInfo = true,     -- показывать сверху, в кого навёлся
-	HoldToAim = true,          -- ПК: наводить только при зажатой клавише F
 
 	-- ESP (где находится игрок)
 	ESP = true,                -- общий выключатель ESP
@@ -81,13 +96,14 @@ local CONFIG = {
 	ESPTeammates = false,      -- показывать и своих
 	ESPMaxDistance = 1000,     -- дальше этого не показывать
 
+
 	-- Клавиши
-	AimKey = Enum.KeyCode.F,   -- клавиша наводки
-	ToggleKey = Enum.KeyCode.Q,
-	MenuKey = Enum.KeyCode.M,
-	SpeedUpKey = Enum.KeyCode.Equals,   -- "+" — быстрее (также + на цифровом блоке)
-	SpeedDownKey = Enum.KeyCode.Minus,  -- "−" — плавнее (также − на цифровом блоке)
-	SnapKey = Enum.KeyCode.X,           -- мгновенная наводка вкл/выкл
+	ToggleKey = Enum.KeyCode.F,                    -- аим вкл/выкл
+	MenuKey = Enum.KeyCode.G,                      -- открыть/закрыть меню
+	AimHoldButton = Enum.UserInputType.MouseButton2, -- ПКМ: зажать — навестись (если HoldToAim)
+	SpeedUpKey = Enum.KeyCode.Equals,              -- "+" — быстрее (также + на цифровом блоке)
+	SpeedDownKey = Enum.KeyCode.Minus,             -- "−" — плавнее (также − на цифровом блоке)
+	SnapKey = Enum.KeyCode.X,                      -- мгновенная наводка вкл/выкл
 }
 --===================================================--
 
@@ -95,6 +111,7 @@ local DEFAULTS = table.clone(CONFIG)
 
 local enabled = true
 local holding = false
+local menuOpen = false
 local hasPass = (CONFIG.GamePassId == 0)
 local isMobile = UserInputService.TouchEnabled and not UserInputService.MouseEnabled
 
@@ -106,17 +123,64 @@ if not hasPass then
 end
 
 local COLORS = {
-	bg = Color3.fromRGB(22, 22, 28),
-	panel = Color3.fromRGB(34, 34, 42),
-	accent = Color3.fromRGB(60, 180, 90),
-	off = Color3.fromRGB(75, 75, 88),
-	text = Color3.fromRGB(235, 235, 240),
-	sub = Color3.fromRGB(150, 150, 165),
-	red = Color3.fromRGB(180, 40, 40),
-	gold = Color3.fromRGB(230, 160, 20),
-	enemy = Color3.fromRGB(255, 60, 60),
-	team = Color3.fromRGB(60, 140, 255),
+	bg = Color3.fromRGB(14, 16, 22),
+	bg2 = Color3.fromRGB(24, 28, 38),
+	panel = Color3.fromRGB(27, 31, 41),
+	panelHover = Color3.fromRGB(36, 41, 54),
+	stroke = Color3.fromRGB(50, 57, 74),
+	accent = Color3.fromRGB(64, 196, 108),
+	off = Color3.fromRGB(58, 64, 80),
+	text = Color3.fromRGB(236, 239, 244),
+	sub = Color3.fromRGB(138, 147, 166),
+	red = Color3.fromRGB(210, 64, 64),
+	gold = Color3.fromRGB(236, 172, 44),
+	enemy = Color3.fromRGB(255, 70, 70),
+	team = Color3.fromRGB(70, 150, 255),
 }
+
+--==================== ПОМОЩНИКИ ИНТЕРФЕЙСА ====================--
+local function corner(inst, r)
+	local c = Instance.new("UICorner")
+	c.CornerRadius = UDim.new(0, r)
+	c.Parent = inst
+	return c
+end
+
+local function outline(inst, color, thickness, transparency)
+	local s = Instance.new("UIStroke")
+	s.Color = color
+	s.Thickness = thickness or 1
+	s.Transparency = transparency or 0
+	s.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	s.Parent = inst
+	return s
+end
+
+local function tween(inst, props, time, style, dir)
+	local t = TweenService:Create(inst, TweenInfo.new(
+		time or 0.15,
+		style or Enum.EasingStyle.Quad,
+		dir or Enum.EasingDirection.Out
+	), props)
+	t:Play()
+	return t
+end
+
+-- Плавная подсветка при наведении мыши
+local function hoverable(obj, base, hover)
+	obj.MouseEnter:Connect(function()
+		tween(obj, { BackgroundColor3 = hover })
+	end)
+	obj.MouseLeave:Connect(function()
+		tween(obj, { BackgroundColor3 = base })
+	end)
+end
+
+local function keyName(key)
+	if key == Enum.KeyCode.Equals then return "+" end
+	if key == Enum.KeyCode.Minus then return "−" end
+	return key.Name
+end
 
 --==================== ИНТЕРФЕЙС ====================--
 local playerGui = player:WaitForChild("PlayerGui")
@@ -138,10 +202,7 @@ circle.AnchorPoint = Vector2.new(0.5, 0.5)
 circle.BackgroundTransparency = 1
 circle.Parent = gui
 Instance.new("UICorner", circle).CornerRadius = UDim.new(1, 0)
-local stroke = Instance.new("UIStroke", circle)
-stroke.Color = Color3.fromRGB(255, 255, 255)
-stroke.Thickness = 1.5
-stroke.Transparency = 0.3
+outline(circle, Color3.fromRGB(255, 255, 255), 1.5, 0.35)
 
 local targetInfo = Instance.new("TextLabel")
 targetInfo.Name = "TargetInfo"
@@ -149,13 +210,14 @@ targetInfo.AnchorPoint = Vector2.new(0.5, 0)
 targetInfo.Position = UDim2.new(0.5, 0, 0, 70)
 targetInfo.Size = UDim2.fromOffset(260, 28)
 targetInfo.BackgroundColor3 = COLORS.bg
-targetInfo.BackgroundTransparency = 0.25
+targetInfo.BackgroundTransparency = 0.15
 targetInfo.Font = Enum.Font.GothamBold
 targetInfo.TextSize = 15
 targetInfo.TextColor3 = COLORS.enemy
 targetInfo.Visible = false
 targetInfo.Parent = gui
-Instance.new("UICorner", targetInfo).CornerRadius = UDim.new(0, 8)
+corner(targetInfo, 8)
+outline(targetInfo, COLORS.enemy, 1, 0.6)
 
 local function makeSideButton(name, posY)
 	local b = Instance.new("TextButton")
@@ -164,18 +226,19 @@ local function makeSideButton(name, posY)
 	b.Position = UDim2.new(1, -20, 0.35, posY)
 	b.Size = UDim2.fromOffset(110, 45)
 	b.Font = Enum.Font.GothamBold
-	b.TextSize = 16
+	b.TextSize = 15
 	b.TextColor3 = Color3.new(1, 1, 1)
+	b.BackgroundColor3 = COLORS.panel
 	b.AutoButtonColor = true
 	b.Parent = gui
-	Instance.new("UICorner", b).CornerRadius = UDim.new(0, 10)
+	corner(b, 10)
+	outline(b, COLORS.stroke, 1, 0.1)
 	return b
 end
 
 local toggleBtn = makeSideButton("AimToggle", 0)
 local menuBtn = makeSideButton("MenuButton", 52)
-menuBtn.Text = "⚙ МЕНЮ"
-menuBtn.BackgroundColor3 = COLORS.panel
+menuBtn.Text = isMobile and "МЕНЮ" or ("МЕНЮ (" .. keyName(CONFIG.MenuKey) .. ")")
 
 local refreshers = {}
 local function refreshAll()
@@ -184,19 +247,24 @@ local function refreshAll()
 	end
 end
 
+-- Вызывается при любом изменении настроек (нужен для автосохранения)
+local onSettingsChanged = function() end
+
 local function updateUI()
+	local suffix = isMobile and "" or (" (" .. keyName(CONFIG.ToggleKey) .. ")")
 	if not hasPass then
 		toggleBtn.Text = "AIM: КУПИТЬ"
 		toggleBtn.BackgroundColor3 = COLORS.gold
 	elseif enabled then
-		toggleBtn.Text = "AIM: ВКЛ"
-		toggleBtn.BackgroundColor3 = Color3.fromRGB(40, 170, 70)
+		toggleBtn.Text = "AIM: ВКЛ" .. suffix
+		toggleBtn.BackgroundColor3 = Color3.fromRGB(40, 160, 75)
 	else
-		toggleBtn.Text = "AIM: ВЫКЛ"
+		toggleBtn.Text = "AIM: ВЫКЛ" .. suffix
 		toggleBtn.BackgroundColor3 = COLORS.red
 	end
 	circle.Visible = CONFIG.ShowFOV and hasPass and enabled
 	refreshAll()
+	onSettingsChanged()
 end
 
 local function applyConfig()
@@ -221,15 +289,15 @@ local speedInfo = Instance.new("TextLabel")
 speedInfo.Name = "SpeedInfo"
 speedInfo.AnchorPoint = Vector2.new(0.5, 0)
 speedInfo.Position = UDim2.new(0.5, 0, 0, 104)
-speedInfo.Size = UDim2.fromOffset(220, 26)
+speedInfo.Size = UDim2.fromOffset(230, 26)
 speedInfo.BackgroundColor3 = COLORS.bg
-speedInfo.BackgroundTransparency = 0.25
+speedInfo.BackgroundTransparency = 0.15
 speedInfo.Font = Enum.Font.GothamBold
 speedInfo.TextSize = 14
 speedInfo.TextColor3 = COLORS.accent
 speedInfo.Visible = false
 speedInfo.Parent = gui
-Instance.new("UICorner", speedInfo).CornerRadius = UDim.new(0, 8)
+corner(speedInfo, 8)
 
 local function isInstant()
 	return CONFIG.InstantSnap or CONFIG.Smoothness >= 1
@@ -237,7 +305,7 @@ end
 
 local function speedText()
 	if isInstant() then
-		return "⚡ Мгновенная наводка"
+		return "Мгновенная наводка"
 	end
 	return string.format("Скорость наводки: %d%%", math.floor(CONFIG.Smoothness * 100 + 0.5))
 end
@@ -282,19 +350,19 @@ local function toggleSnap()
 	showSpeed()
 end
 
--- Кнопки «−  ⚡  +» под кнопкой меню (удобно на телефоне)
+-- Кнопки «−  MAX  +» под кнопкой меню (удобно на телефоне)
 local function makeSpeedButton(name, text, rightOffset)
 	local b = makeSideButton(name, 104)
 	b.Position = UDim2.new(1, -20 - rightOffset, 0.35, 104)
 	b.Size = UDim2.fromOffset(34, 40)
 	b.TextSize = 20
 	b.Text = text
-	b.BackgroundColor3 = COLORS.panel
 	return b
 end
 
 local speedUpBtn = makeSpeedButton("SpeedUp", "+", 0)
-local snapBtn = makeSpeedButton("InstantSnap", "⚡", 38)
+local snapBtn = makeSpeedButton("InstantSnap", "MAX", 38)
+snapBtn.TextSize = 12
 local speedDownBtn = makeSpeedButton("SpeedDown", "−", 76)
 
 speedUpBtn.Activated:Connect(function()
@@ -313,27 +381,173 @@ table.insert(refreshers, function()
 	snapBtn.BackgroundColor3 = CONFIG.InstantSnap and COLORS.gold or COLORS.panel
 end)
 
+--==================== КОНФИГ (ядро) ====================--
+-- Какие настройки входят в конфиг: все простые значения из CONFIG,
+-- кроме служебных (геймпасс, имя атрибута команды, сам код) и клавиш.
+local SAVE_KEYS = {}
+for k, v in pairs(DEFAULTS) do
+	local t = typeof(v)
+	if (t == "boolean" or t == "number" or t == "string")
+		and k ~= "GamePassId" and k ~= "TeamAttribute" and k ~= "Preset" then
+		table.insert(SAVE_KEYS, k)
+	end
+end
+table.sort(SAVE_KEYS)
+
+-- Допустимые значения для настроек-выборов
+local CHOICES = {
+	AimMode = { Override = true, Classic = true },
+	AimPart = { Head = true, UpperTorso = true, HumanoidRootPart = true },
+	AutoShoot = { Phone = true, All = true, Off = true },
+	TeamMode = { Auto = true, Off = true },
+}
+
+-- Настройки -> код вида "enabled=1;AimMode=Override;FOV=150;..."
+local function exportCode()
+	local parts = { "enabled=" .. (enabled and "1" or "0") }
+	for _, k in ipairs(SAVE_KEYS) do
+		local v = CONFIG[k]
+		if type(v) == "boolean" then
+			v = v and "1" or "0"
+		elseif type(v) == "number" then
+			v = string.format("%g", v)
+		end
+		table.insert(parts, k .. "=" .. tostring(v))
+	end
+	return table.concat(parts, ";")
+end
+
+-- Код -> настройки. Возвращает, сколько параметров применено
+local function importCode(code)
+	if type(code) ~= "string" then return 0 end
+	local applied = 0
+	for pair in string.gmatch(code, "[^;]+") do
+		local k, v = string.match(pair, "^%s*([%w_]+)%s*=%s*(.-)%s*$")
+		if k == "enabled" then
+			if v == "1" or v == "0" then
+				enabled = (v == "1")
+				applied += 1
+			end
+		elseif k and table.find(SAVE_KEYS, k) then
+			local def = DEFAULTS[k]
+			if type(def) == "boolean" and (v == "1" or v == "0" or v == "true" or v == "false") then
+				CONFIG[k] = (v == "1" or v == "true")
+				applied += 1
+			elseif type(def) == "number" and tonumber(v) then
+				CONFIG[k] = tonumber(v)
+				applied += 1
+			elseif type(def) == "string" and (not CHOICES[k] or CHOICES[k][v]) then
+				CONFIG[k] = v
+				applied += 1
+			end
+		end
+	end
+	return applied
+end
+
+-- Как показывать настройки в списке «Текущие настройки»
+local SETTING_VIEW = {
+	{ "enabled", "Аим" },
+	{ "AimMode", "Режим камеры" },
+	{ "AimPart", "Цель" },
+	{ "HoldToAim", "Только по ПКМ" },
+	{ "HoldThroughWalls", "ПКМ сквозь стены" },
+	{ "Smoothness", "Скорость наводки" },
+	{ "InstantSnap", "Мгновенная наводка" },
+	{ "FOV", "Радиус FOV" },
+	{ "Prediction", "Упреждение" },
+	{ "StickyTarget", "Держать цель" },
+	{ "LockGrace", "Держать после укрытия" },
+	{ "AutoShoot", "Автострел" },
+	{ "AutoShootAngle", "Точность автострела" },
+	{ "AutoShootDelay", "Пауза выстрелов" },
+	{ "TeamCheck", "Не целиться в своих" },
+	{ "TeamMode", "Команды" },
+	{ "WallCheck", "Проверка стен" },
+	{ "TargetNPC", "Боты" },
+	{ "ESP", "ESP" },
+	{ "ESPHighlight", "Подсветка" },
+	{ "ESPNames", "Ники" },
+	{ "ESPDistance", "Расстояние" },
+	{ "ESPHealth", "Полоска HP" },
+	{ "ESPTracers", "Линии" },
+	{ "ESPTeammates", "Показывать своих" },
+	{ "ESPMaxDistance", "Дальность ESP" },
+}
+
+local VALUE_NAMES = {
+	Override = "Rivals", Classic = "Обычный",
+	Head = "Голова", UpperTorso = "Торс", HumanoidRootPart = "Центр",
+	Phone = "Телефон", All = "Везде", Off = "Выкл", Auto = "Авто",
+}
+
+local UNITS = {
+	FOV = " px", LockGrace = " с", AutoShootAngle = "°",
+	AutoShootDelay = " с", ESPMaxDistance = " м",
+}
+
+local function formatSetting(key)
+	local v
+	if key == "enabled" then
+		v = enabled
+	else
+		v = CONFIG[key]
+	end
+	if type(v) == "boolean" then
+		return v and "Вкл" or "Выкл", v
+	end
+	if key == "Smoothness" then
+		if CONFIG.InstantSnap then
+			return "мгновенно", true
+		end
+		return math.floor(v * 100 + 0.5) .. "%", true
+	end
+	if type(v) == "number" then
+		return string.format("%g", v) .. (UNITS[key] or ""), true
+	end
+	if key == "TeamMode" and v == "Off" then
+		return "Все враги", true
+	end
+	return VALUE_NAMES[v] or tostring(v), v ~= "Off"
+end
+
+local configStatus = nil     -- строка статуса во вкладке «Конфиг»
+local teamInfoLabel = nil    -- строка «Твоя команда…» во вкладке «Аим»
+
+local function setStatus(text, color)
+	if configStatus then
+		configStatus.Text = text
+		configStatus.TextColor3 = color or COLORS.sub
+	end
+end
+
 --==================== МЕНЮ ====================--
 local menu = Instance.new("Frame")
 menu.Name = "Menu"
 menu.AnchorPoint = Vector2.new(0.5, 0.5)
 menu.Position = UDim2.fromScale(0.5, 0.5)
-menu.Size = UDim2.fromOffset(320, 460)
-menu.BackgroundColor3 = COLORS.bg
+menu.Size = UDim2.fromOffset(380, 520)
+menu.BackgroundColor3 = Color3.new(1, 1, 1)
 menu.Visible = false
 menu.ZIndex = 10
 menu.Parent = gui
-Instance.new("UICorner", menu).CornerRadius = UDim.new(0, 12)
-local menuStroke = Instance.new("UIStroke", menu)
-menuStroke.Color = COLORS.accent
-menuStroke.Thickness = 1.5
-menuStroke.Transparency = 0.4
+corner(menu, 14)
+outline(menu, COLORS.accent, 1.5, 0.55)
+local bgGradient = Instance.new("UIGradient")
+bgGradient.Color = ColorSequence.new(COLORS.bg2, COLORS.bg)
+bgGradient.Rotation = 90
+bgGradient.Parent = menu
 
-local uiScale = Instance.new("UIScale", menu)
+local uiScale = Instance.new("UIScale")
+uiScale.Parent = menu
+local baseScale = 1
 local function updateScale()
 	local cam = workspace.CurrentCamera
 	if cam then
-		uiScale.Scale = math.clamp(cam.ViewportSize.Y / 540, 0.6, 1)
+		baseScale = math.clamp(cam.ViewportSize.Y / 560, 0.6, 1)
+		if menuOpen then
+			uiScale.Scale = baseScale
+		end
 	end
 end
 updateScale()
@@ -347,83 +561,152 @@ modal.Text = ""
 modal.Modal = true
 modal.Parent = menu
 
+-- Заголовок
 local titleBar = Instance.new("Frame")
-titleBar.Size = UDim2.new(1, 0, 0, 42)
+titleBar.Size = UDim2.new(1, 0, 0, 58)
 titleBar.BackgroundTransparency = 1
 titleBar.Active = true
 titleBar.ZIndex = 11
 titleBar.Parent = menu
 
+local logo = Instance.new("TextLabel")
+logo.Position = UDim2.fromOffset(14, 12)
+logo.Size = UDim2.fromOffset(34, 34)
+logo.BackgroundColor3 = COLORS.accent
+logo.Font = Enum.Font.GothamBlack
+logo.TextSize = 18
+logo.Text = "R"
+logo.TextColor3 = Color3.new(1, 1, 1)
+logo.ZIndex = 12
+logo.Parent = titleBar
+corner(logo, 10)
+
 local title = Instance.new("TextLabel")
 title.BackgroundTransparency = 1
-title.Position = UDim2.fromOffset(14, 0)
-title.Size = UDim2.new(1, -60, 1, 0)
-title.Font = Enum.Font.GothamBold
+title.Position = UDim2.fromOffset(58, 11)
+title.Size = UDim2.new(1, -110, 0, 20)
+title.Font = Enum.Font.GothamBlack
 title.TextSize = 17
 title.TextColor3 = COLORS.text
 title.TextXAlignment = Enum.TextXAlignment.Left
-title.Text = "🎯 Rivals Modded — Настройки"
-title.ZIndex = 11
+title.Text = "RIVALS MODDED"
+title.ZIndex = 12
 title.Parent = titleBar
+
+local subtitle = Instance.new("TextLabel")
+subtitle.BackgroundTransparency = 1
+subtitle.Position = UDim2.fromOffset(58, 31)
+subtitle.Size = UDim2.new(1, -110, 0, 16)
+subtitle.Font = Enum.Font.GothamMedium
+subtitle.TextSize = 12
+subtitle.TextColor3 = COLORS.sub
+subtitle.TextXAlignment = Enum.TextXAlignment.Left
+subtitle.Text = "Аим  •  ESP  •  Конфиг"
+subtitle.ZIndex = 12
+subtitle.Parent = titleBar
 
 local closeBtn = Instance.new("TextButton")
 closeBtn.AnchorPoint = Vector2.new(1, 0.5)
-closeBtn.Position = UDim2.new(1, -8, 0.5, 0)
+closeBtn.Position = UDim2.new(1, -14, 0.5, 0)
 closeBtn.Size = UDim2.fromOffset(30, 30)
-closeBtn.BackgroundColor3 = COLORS.red
+closeBtn.BackgroundColor3 = COLORS.panel
+closeBtn.AutoButtonColor = false
 closeBtn.Font = Enum.Font.GothamBold
-closeBtn.TextSize = 16
-closeBtn.TextColor3 = Color3.new(1, 1, 1)
-closeBtn.Text = "✕"
+closeBtn.TextSize = 15
+closeBtn.TextColor3 = COLORS.text
+closeBtn.Text = "X"
 closeBtn.ZIndex = 12
 closeBtn.Parent = titleBar
-Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(0, 8)
+corner(closeBtn, 8)
+hoverable(closeBtn, COLORS.panel, COLORS.red)
 
--- Вкладки
+-- Линия под заголовком, тающая к краям
+local divider = Instance.new("Frame")
+divider.Position = UDim2.fromOffset(14, 58)
+divider.Size = UDim2.new(1, -28, 0, 1)
+divider.BackgroundColor3 = COLORS.accent
+divider.BorderSizePixel = 0
+divider.ZIndex = 11
+divider.Parent = menu
+local divGradient = Instance.new("UIGradient")
+divGradient.Transparency = NumberSequence.new({
+	NumberSequenceKeypoint.new(0, 1),
+	NumberSequenceKeypoint.new(0.5, 0.2),
+	NumberSequenceKeypoint.new(1, 1),
+})
+divGradient.Parent = divider
+
+-- Вкладки (переключатель-сегмент)
 local tabBar = Instance.new("Frame")
-tabBar.Position = UDim2.fromOffset(10, 44)
-tabBar.Size = UDim2.new(1, -20, 0, 32)
-tabBar.BackgroundTransparency = 1
+tabBar.Position = UDim2.fromOffset(14, 70)
+tabBar.Size = UDim2.new(1, -28, 0, 36)
+tabBar.BackgroundColor3 = COLORS.panel
 tabBar.ZIndex = 11
 tabBar.Parent = menu
-local tabLayout = Instance.new("UIListLayout", tabBar)
+corner(tabBar, 10)
+local tabPadding = Instance.new("UIPadding")
+tabPadding.PaddingTop = UDim.new(0, 4)
+tabPadding.PaddingBottom = UDim.new(0, 4)
+tabPadding.PaddingLeft = UDim.new(0, 4)
+tabPadding.PaddingRight = UDim.new(0, 4)
+tabPadding.Parent = tabBar
+local tabLayout = Instance.new("UIListLayout")
 tabLayout.FillDirection = Enum.FillDirection.Horizontal
-tabLayout.Padding = UDim.new(0, 6)
+tabLayout.Padding = UDim.new(0, 4)
+tabLayout.SortOrder = Enum.SortOrder.LayoutOrder
+tabLayout.Parent = tabBar
 
+local TAB_COUNT = 3
 local pages, tabButtons = {}, {}
+local tabOrder = 0
 
 local function selectTab(name)
 	for n, page in pairs(pages) do
-		page.Visible = (n == name)
-		tabButtons[n].BackgroundColor3 = (n == name) and COLORS.accent or COLORS.panel
+		local on = (n == name)
+		page.Visible = on
+		tween(tabButtons[n], {
+			BackgroundTransparency = on and 0 or 1,
+			TextColor3 = on and Color3.new(1, 1, 1) or COLORS.sub,
+		})
 	end
 end
 
-local function makePage(name)
+local function makePage(name, label)
+	tabOrder += 1
 	local btn = Instance.new("TextButton")
-	btn.Size = UDim2.new(0.5, -3, 1, 0)
+	btn.Size = UDim2.new(1 / TAB_COUNT, -3, 1, 0)
+	btn.BackgroundColor3 = COLORS.accent
+	btn.BackgroundTransparency = 1
+	btn.AutoButtonColor = false
 	btn.Font = Enum.Font.GothamBold
-	btn.TextSize = 15
-	btn.TextColor3 = Color3.new(1, 1, 1)
-	btn.Text = name
+	btn.TextSize = 14
+	btn.TextColor3 = COLORS.sub
+	btn.Text = label
+	btn.LayoutOrder = tabOrder
 	btn.ZIndex = 12
 	btn.Parent = tabBar
-	Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
+	corner(btn, 7)
 
 	local page = Instance.new("ScrollingFrame")
-	page.Position = UDim2.fromOffset(10, 82)
-	page.Size = UDim2.new(1, -20, 1, -92)
+	page.Position = UDim2.fromOffset(14, 116)
+	page.Size = UDim2.new(1, -28, 1, -158)
 	page.BackgroundTransparency = 1
 	page.BorderSizePixel = 0
-	page.ScrollBarThickness = 4
+	page.ScrollBarThickness = 3
 	page.ScrollBarImageColor3 = COLORS.accent
 	page.CanvasSize = UDim2.new()
 	page.AutomaticCanvasSize = Enum.AutomaticSize.Y
+	page.Visible = false
 	page.ZIndex = 11
 	page.Parent = menu
-	local layout = Instance.new("UIListLayout", page)
+	local layout = Instance.new("UIListLayout")
 	layout.Padding = UDim.new(0, 6)
 	layout.SortOrder = Enum.SortOrder.LayoutOrder
+	layout.Parent = page
+	local pad = Instance.new("UIPadding")
+	pad.PaddingRight = UDim.new(0, 8)
+	pad.PaddingBottom = UDim.new(0, 6)
+	pad.Parent = page
 
 	pages[name] = page
 	tabButtons[name] = btn
@@ -433,6 +716,24 @@ local function makePage(name)
 	return page
 end
 
+-- Подсказка по клавишам внизу окна
+local footer = Instance.new("TextLabel")
+footer.BackgroundTransparency = 1
+footer.AnchorPoint = Vector2.new(0, 1)
+footer.Position = UDim2.new(0, 14, 1, -8)
+footer.Size = UDim2.new(1, -28, 0, 28)
+footer.Font = Enum.Font.GothamMedium
+footer.TextSize = 11
+footer.TextWrapped = true
+footer.TextColor3 = COLORS.sub
+footer.Text = string.format(
+	"%s — аим  •  %s — меню  •  %s / %s — скорость  •  %s — мгновенно",
+	keyName(CONFIG.ToggleKey), keyName(CONFIG.MenuKey),
+	keyName(CONFIG.SpeedUpKey), keyName(CONFIG.SpeedDownKey), keyName(CONFIG.SnapKey)
+)
+footer.ZIndex = 11
+footer.Parent = menu
+
 local currentPage
 local order = 0
 local function nextOrder()
@@ -440,18 +741,17 @@ local function nextOrder()
 	return order
 end
 
-local tweenInfo = TweenInfo.new(0.15, Enum.EasingStyle.Quad)
-
 local function makeLabel(parent, text, size, color, bold)
 	local l = Instance.new("TextLabel")
 	l.BackgroundTransparency = 1
 	l.Font = bold and Enum.Font.GothamBold or Enum.Font.GothamMedium
-	l.TextSize = size or 15
+	l.TextSize = size or 14
 	l.TextColor3 = color or COLORS.text
 	l.TextXAlignment = Enum.TextXAlignment.Left
+	l.TextTruncate = Enum.TextTruncate.AtEnd
 	l.Text = text
-	l.Position = UDim2.fromOffset(12, 0)
-	l.Size = UDim2.new(1, -80, 1, 0)
+	l.Position = UDim2.fromOffset(14, 0)
+	l.Size = UDim2.new(1, -84, 1, 0)
 	l.ZIndex = 12
 	l.Parent = parent
 	return l
@@ -461,44 +761,64 @@ local function makeRow(height)
 	local row = Instance.new("TextButton")
 	row.Text = ""
 	row.AutoButtonColor = false
-	row.Size = UDim2.new(1, -6, 0, height)
+	row.Size = UDim2.new(1, 0, 0, height)
 	row.BackgroundColor3 = COLORS.panel
 	row.BorderSizePixel = 0
 	row.LayoutOrder = nextOrder()
 	row.ZIndex = 11
 	row.Parent = currentPage
-	Instance.new("UICorner", row).CornerRadius = UDim.new(0, 8)
+	corner(row, 9)
+	hoverable(row, COLORS.panel, COLORS.panelHover)
 	return row
 end
 
 local function makeHeader(text)
-	local h = Instance.new("TextLabel")
+	local h = Instance.new("Frame")
 	h.BackgroundTransparency = 1
-	h.Size = UDim2.new(1, -6, 0, 22)
-	h.Font = Enum.Font.GothamBold
-	h.TextSize = 13
-	h.TextColor3 = COLORS.sub
-	h.TextXAlignment = Enum.TextXAlignment.Left
-	h.Text = "  " .. string.upper(text)
+	h.Size = UDim2.new(1, 0, 0, 26)
 	h.LayoutOrder = nextOrder()
 	h.ZIndex = 11
 	h.Parent = currentPage
+
+	local bar = Instance.new("Frame")
+	bar.AnchorPoint = Vector2.new(0, 0.5)
+	bar.Position = UDim2.new(0, 2, 0.5, 2)
+	bar.Size = UDim2.fromOffset(3, 12)
+	bar.BackgroundColor3 = COLORS.accent
+	bar.BorderSizePixel = 0
+	bar.ZIndex = 12
+	bar.Parent = h
+	corner(bar, 2)
+
+	local l = Instance.new("TextLabel")
+	l.BackgroundTransparency = 1
+	l.Position = UDim2.fromOffset(12, 2)
+	l.Size = UDim2.new(1, -12, 1, 0)
+	l.Font = Enum.Font.GothamBold
+	l.TextSize = 12
+	l.TextColor3 = COLORS.sub
+	l.TextXAlignment = Enum.TextXAlignment.Left
+	l.Text = string.upper(text)
+	l.ZIndex = 12
+	l.Parent = h
 end
 
 local function makeToggle(text, key)
-	local row = makeRow(40)
+	local row = makeRow(42)
 	makeLabel(row, text)
 
 	local sw = Instance.new("Frame")
 	sw.AnchorPoint = Vector2.new(1, 0.5)
-	sw.Position = UDim2.new(1, -10, 0.5, 0)
-	sw.Size = UDim2.fromOffset(46, 24)
+	sw.Position = UDim2.new(1, -12, 0.5, 0)
+	sw.Size = UDim2.fromOffset(44, 24)
+	sw.BackgroundColor3 = COLORS.off
 	sw.ZIndex = 12
 	sw.Parent = row
 	Instance.new("UICorner", sw).CornerRadius = UDim.new(1, 0)
 
 	local knob = Instance.new("Frame")
 	knob.AnchorPoint = Vector2.new(0, 0.5)
+	knob.Position = UDim2.new(0, 3, 0.5, 0)
 	knob.Size = UDim2.fromOffset(18, 18)
 	knob.BackgroundColor3 = Color3.new(1, 1, 1)
 	knob.ZIndex = 13
@@ -513,12 +833,8 @@ local function makeToggle(text, key)
 
 	local function refresh()
 		local on = get()
-		TweenService:Create(sw, tweenInfo, {
-			BackgroundColor3 = on and COLORS.accent or COLORS.off,
-		}):Play()
-		TweenService:Create(knob, tweenInfo, {
-			Position = on and UDim2.new(1, -21, 0.5, 0) or UDim2.new(0, 3, 0.5, 0),
-		}):Play()
+		tween(sw, { BackgroundColor3 = on and COLORS.accent or COLORS.off })
+		tween(knob, { Position = on and UDim2.new(1, -21, 0.5, 0) or UDim2.new(0, 3, 0.5, 0) })
 	end
 
 	row.Activated:Connect(function()
@@ -534,21 +850,27 @@ local function makeToggle(text, key)
 	refresh()
 end
 
-local function makeSlider(text, key, min, max, step, decimals)
+local function makeSlider(text, key, min, max, step, decimals, suffix)
 	local page = currentPage
-	local row = makeRow(60)
+	local row = makeRow(62)
 	local label = makeLabel(row, text)
-	label.Size = UDim2.new(1, -90, 0, 30)
-	label.Position = UDim2.fromOffset(12, 2)
+	label.Size = UDim2.new(1, -100, 0, 30)
+	label.Position = UDim2.fromOffset(14, 4)
 
-	local valueLabel = makeLabel(row, "", 15, COLORS.accent, true)
-	valueLabel.AnchorPoint = Vector2.new(1, 0)
-	valueLabel.Position = UDim2.new(1, -12, 0, 2)
-	valueLabel.Size = UDim2.fromOffset(70, 30)
-	valueLabel.TextXAlignment = Enum.TextXAlignment.Right
+	local pill = Instance.new("TextLabel")
+	pill.AnchorPoint = Vector2.new(1, 0)
+	pill.Position = UDim2.new(1, -12, 0, 8)
+	pill.Size = UDim2.fromOffset(64, 22)
+	pill.BackgroundColor3 = COLORS.bg
+	pill.Font = Enum.Font.GothamBold
+	pill.TextSize = 13
+	pill.TextColor3 = COLORS.accent
+	pill.ZIndex = 12
+	pill.Parent = row
+	corner(pill, 6)
 
 	local bar = Instance.new("Frame")
-	bar.Position = UDim2.new(0, 14, 0, 40)
+	bar.Position = UDim2.new(0, 14, 0, 44)
 	bar.Size = UDim2.new(1, -28, 0, 6)
 	bar.BackgroundColor3 = COLORS.off
 	bar.BorderSizePixel = 0
@@ -570,16 +892,17 @@ local function makeSlider(text, key, min, max, step, decimals)
 	knob.ZIndex = 14
 	knob.Parent = bar
 	Instance.new("UICorner", knob).CornerRadius = UDim.new(1, 0)
+	outline(knob, COLORS.accent, 2, 0)
 
 	local hit = Instance.new("TextButton")
 	hit.Text = ""
 	hit.BackgroundTransparency = 1
-	hit.Position = UDim2.fromOffset(4, 28)
+	hit.Position = UDim2.fromOffset(4, 32)
 	hit.Size = UDim2.new(1, -8, 0, 30)
 	hit.ZIndex = 15
 	hit.Parent = row
 
-	local fmt = "%." .. decimals .. "f"
+	local fmt = "%." .. decimals .. "f" .. (suffix or "")
 	local dragging = false
 
 	local function setFromX(x)
@@ -615,10 +938,10 @@ local function makeSlider(text, key, min, max, step, decimals)
 	end)
 
 	local function refresh()
-		local rel = (CONFIG[key] - min) / (max - min)
+		local rel = math.clamp((CONFIG[key] - min) / (max - min), 0, 1)
 		fill.Size = UDim2.new(rel, 0, 1, 0)
 		knob.Position = UDim2.new(rel, 0, 0.5, 0)
-		valueLabel.Text = string.format(fmt, CONFIG[key])
+		pill.Text = string.format(fmt, CONFIG[key])
 	end
 
 	table.insert(refreshers, refresh)
@@ -626,20 +949,22 @@ local function makeSlider(text, key, min, max, step, decimals)
 end
 
 local function makeChoice(text, key, options)
-	local row = makeRow(40)
-	makeLabel(row, text)
+	local row = makeRow(42)
+	makeLabel(row, text).Size = UDim2.new(1, -150, 1, 0)
 
 	local btn = Instance.new("TextButton")
 	btn.AnchorPoint = Vector2.new(1, 0.5)
-	btn.Position = UDim2.new(1, -10, 0.5, 0)
-	btn.Size = UDim2.fromOffset(120, 26)
-	btn.BackgroundColor3 = COLORS.accent
+	btn.Position = UDim2.new(1, -12, 0.5, 0)
+	btn.Size = UDim2.fromOffset(124, 26)
+	btn.BackgroundColor3 = COLORS.bg
+	btn.AutoButtonColor = false
 	btn.Font = Enum.Font.GothamBold
-	btn.TextSize = 14
-	btn.TextColor3 = Color3.new(1, 1, 1)
+	btn.TextSize = 13
+	btn.TextColor3 = COLORS.accent
 	btn.ZIndex = 12
 	btn.Parent = row
-	Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
+	corner(btn, 7)
+	outline(btn, COLORS.accent, 1, 0.5)
 
 	local function cycle()
 		local idx = 1
@@ -657,7 +982,7 @@ local function makeChoice(text, key, options)
 	local function refresh()
 		for _, opt in ipairs(options) do
 			if opt[1] == CONFIG[key] then
-				btn.Text = opt[2] .. "  ▸"
+				btn.Text = opt[2] .. "  ›"
 			end
 		end
 	end
@@ -667,51 +992,156 @@ local function makeChoice(text, key, options)
 end
 
 local function makeButton(text, color, callback)
-	local row = makeRow(38)
-	row.BackgroundColor3 = color
-	local l = makeLabel(row, text, 15, Color3.new(1, 1, 1), true)
-	l.Position = UDim2.new()
-	l.Size = UDim2.fromScale(1, 1)
-	l.TextXAlignment = Enum.TextXAlignment.Center
-	row.Activated:Connect(callback)
+	local b = Instance.new("TextButton")
+	b.Size = UDim2.new(1, 0, 0, 40)
+	b.BackgroundColor3 = color
+	b.AutoButtonColor = false
+	b.Font = Enum.Font.GothamBold
+	b.TextSize = 14
+	b.TextColor3 = Color3.new(1, 1, 1)
+	b.Text = text
+	b.LayoutOrder = nextOrder()
+	b.ZIndex = 12
+	b.Parent = currentPage
+	corner(b, 9)
+	hoverable(b, color, color:Lerp(Color3.new(1, 1, 1), 0.12))
+	b.Activated:Connect(callback)
+	return b
 end
 
 local function makeHint(text)
 	local hint = Instance.new("TextLabel")
 	hint.BackgroundTransparency = 1
-	hint.Size = UDim2.new(1, -6, 0, 34)
+	hint.Size = UDim2.new(1, 0, 0, 0)
+	hint.AutomaticSize = Enum.AutomaticSize.Y
 	hint.Font = Enum.Font.Gotham
 	hint.TextSize = 12
 	hint.TextColor3 = COLORS.sub
 	hint.TextWrapped = true
+	hint.TextXAlignment = Enum.TextXAlignment.Left
 	hint.Text = text
 	hint.LayoutOrder = nextOrder()
 	hint.ZIndex = 11
 	hint.Parent = currentPage
+	return hint
+end
+
+-- Список «Текущие настройки»: название слева, значение справа
+local function makeSettingsList()
+	local box = Instance.new("Frame")
+	box.Size = UDim2.new(1, 0, 0, 0)
+	box.AutomaticSize = Enum.AutomaticSize.Y
+	box.BackgroundColor3 = COLORS.panel
+	box.LayoutOrder = nextOrder()
+	box.ZIndex = 11
+	box.Parent = currentPage
+	corner(box, 9)
+	local pad = Instance.new("UIPadding")
+	pad.PaddingTop = UDim.new(0, 8)
+	pad.PaddingBottom = UDim.new(0, 8)
+	pad.PaddingLeft = UDim.new(0, 14)
+	pad.PaddingRight = UDim.new(0, 14)
+	pad.Parent = box
+	local layout = Instance.new("UIListLayout")
+	layout.Padding = UDim.new(0, 2)
+	layout.SortOrder = Enum.SortOrder.LayoutOrder
+	layout.Parent = box
+
+	for i, item in ipairs(SETTING_VIEW) do
+		local key, title = item[1], item[2]
+		local line = Instance.new("Frame")
+		line.BackgroundTransparency = 1
+		line.Size = UDim2.new(1, 0, 0, 22)
+		line.LayoutOrder = i
+		line.ZIndex = 12
+		line.Parent = box
+
+		local name = Instance.new("TextLabel")
+		name.BackgroundTransparency = 1
+		name.Size = UDim2.new(0.62, 0, 1, 0)
+		name.Font = Enum.Font.GothamMedium
+		name.TextSize = 13
+		name.TextColor3 = COLORS.sub
+		name.TextXAlignment = Enum.TextXAlignment.Left
+		name.TextTruncate = Enum.TextTruncate.AtEnd
+		name.Text = title
+		name.ZIndex = 12
+		name.Parent = line
+
+		local value = Instance.new("TextLabel")
+		value.BackgroundTransparency = 1
+		value.AnchorPoint = Vector2.new(1, 0)
+		value.Position = UDim2.fromScale(1, 0)
+		value.Size = UDim2.new(0.38, 0, 1, 0)
+		value.Font = Enum.Font.GothamBold
+		value.TextSize = 13
+		value.TextXAlignment = Enum.TextXAlignment.Right
+		value.ZIndex = 12
+		value.Parent = line
+
+		table.insert(refreshers, function()
+			local text, active = formatSetting(key)
+			value.Text = text
+			value.TextColor3 = active and COLORS.text or COLORS.sub
+		end)
+	end
+end
+
+-- Поле с кодом (можно выделить и скопировать, или вставить свой)
+local function makeCodeBox(placeholder, height)
+	local box = Instance.new("TextBox")
+	box.Size = UDim2.new(1, 0, 0, height)
+	box.BackgroundColor3 = COLORS.bg
+	box.ClearTextOnFocus = false
+	box.MultiLine = true
+	box.TextWrapped = true
+	box.TextXAlignment = Enum.TextXAlignment.Left
+	box.TextYAlignment = Enum.TextYAlignment.Top
+	box.Font = Enum.Font.Code
+	box.TextSize = 12
+	box.TextColor3 = COLORS.text
+	box.PlaceholderText = placeholder
+	box.PlaceholderColor3 = COLORS.sub
+	box.Text = ""
+	box.LayoutOrder = nextOrder()
+	box.ZIndex = 12
+	box.Parent = currentPage
+	corner(box, 9)
+	outline(box, COLORS.stroke, 1, 0)
+	local pad = Instance.new("UIPadding")
+	pad.PaddingTop = UDim.new(0, 8)
+	pad.PaddingBottom = UDim.new(0, 8)
+	pad.PaddingLeft = UDim.new(0, 10)
+	pad.PaddingRight = UDim.new(0, 10)
+	pad.Parent = box
+	return box
 end
 
 --------- Вкладка АИМ ---------
-currentPage = makePage("Аим")
+currentPage = makePage("aim", "Аим")
 makeHeader("Основное")
 makeToggle("Аим включён", "enabled")
 makeChoice("Режим камеры", "AimMode", {
 	{ "Override", "Rivals" },
 	{ "Classic", "Обычный" },
 })
-makeToggle("Наводка по F", "HoldToAim")
 makeChoice("Цель", "AimPart", {
 	{ "Head", "Голова" },
 	{ "UpperTorso", "Торс" },
 	{ "HumanoidRootPart", "Центр" },
 })
+makeToggle("Наводка только по ПКМ", "HoldToAim")
+makeToggle("ПКМ: сквозь стены", "HoldThroughWalls")
+
+makeHeader("Скорость наводки")
+makeSlider("Скорость", "Smoothness", 0.05, 1, 0.05, 2)
+makeToggle("Мгновенная наводка", "InstantSnap")
 
 makeHeader("Захват")
-makeSlider("Радиус FOV", "FOV", 30, 400, 5, 0)
-makeSlider("Скорость наводки", "Smoothness", 0.05, 1, 0.05, 2)
-makeToggle("Мгновенная наводка", "InstantSnap")
+makeSlider("Радиус FOV", "FOV", 30, 400, 5, 0, " px")
 makeSlider("Упреждение", "Prediction", 0, 0.3, 0.01, 2)
 makeToggle("Держать цель", "StickyTarget")
-makeSlider("Держать после укрытия (сек)", "LockGrace", 0, 1, 0.05, 2)
+makeSlider("Держать после укрытия", "LockGrace", 0, 1, 0.05, 2, " с")
 
 makeHeader("Автострел")
 makeChoice("Автострел", "AutoShoot", {
@@ -719,19 +1149,23 @@ makeChoice("Автострел", "AutoShoot", {
 	{ "All", "Везде" },
 	{ "Off", "Выкл" },
 })
-makeSlider("Точность (градусы)", "AutoShootAngle", 0.5, 10, 0.5, 1)
-makeSlider("Пауза между выстрелами", "AutoShootDelay", 0.03, 0.5, 0.01, 2)
+makeSlider("Точность", "AutoShootAngle", 0.5, 10, 0.5, 1, "°")
+makeSlider("Пауза между выстрелами", "AutoShootDelay", 0.03, 0.5, 0.01, 2, " с")
 
 makeHeader("Проверки")
 makeToggle("Не целиться в своих", "TeamCheck")
+makeChoice("Команды", "TeamMode", {
+	{ "Auto", "Авто" },
+	{ "Off", "Все враги" },
+})
+teamInfoLabel = makeHint("Открой меню на секунду — здесь появится твоя команда")
 makeToggle("Не целиться сквозь стены", "WallCheck")
 makeToggle("Целиться в ботов", "TargetNPC")
 makeToggle("Показывать круг FOV", "ShowFOV")
 makeToggle("Показывать цель сверху", "ShowTargetInfo")
-makeHint("Q — аим вкл/выкл  •  M — меню  •  F — навестись  •  + / − — скорость  •  X — мгновенно")
 
 --------- Вкладка ESP ---------
-currentPage = makePage("ESP")
+currentPage = makePage("esp", "ESP")
 makeHeader("Где находятся игроки")
 makeToggle("ESP включён", "ESP")
 makeToggle("Подсветка сквозь стены", "ESPHighlight")
@@ -740,30 +1174,78 @@ makeToggle("Расстояние", "ESPDistance")
 makeToggle("Полоска HP", "ESPHealth")
 makeToggle("Линии к игрокам", "ESPTracers")
 makeToggle("Показывать своих", "ESPTeammates")
-makeSlider("Макс. дистанция", "ESPMaxDistance", 50, 3000, 50, 0)
+makeSlider("Макс. дистанция", "ESPMaxDistance", 50, 3000, 50, 0, " м")
 
-makeHeader("")
-makeButton("Сбросить все настройки", COLORS.off, function()
-	for k, v in pairs(DEFAULTS) do
-		CONFIG[k] = v
+--------- Вкладка КОНФИГ ---------
+currentPage = makePage("cfg", "Конфиг")
+makeHeader("Текущие настройки")
+makeSettingsList()
+
+makeHeader("Автонастройка")
+makeHint("Это код твоих текущих настроек. Выдели его (Ctrl+A), скопируй (Ctrl+C) и вставь в CONFIG.Preset в начале скрипта. Тогда при каждом запуске скрипт сам выставит эти параметры.")
+local exportBox = makeCodeBox("", 92)
+exportBox.Text = exportCode()
+table.insert(refreshers, function()
+	if not exportBox:IsFocused() then
+		exportBox.Text = exportCode()
+	end
+end)
+-- Поле только для копирования: после правки возвращаем настоящий код
+exportBox.FocusLost:Connect(function()
+	exportBox.Text = exportCode()
+end)
+
+makeHeader("Применить код")
+local importBox = makeCodeBox("Вставь сюда код конфига", 64)
+makeButton("Применить код", COLORS.accent, function()
+	local n = importCode(importBox.Text)
+	if n > 0 then
+		applyConfig()
+		importBox.Text = ""
+		setStatus("Код применён: " .. n .. " параметров", COLORS.accent)
+	else
+		setStatus("Код не распознан — скопируй его целиком из поля выше", COLORS.red)
+	end
+end)
+configStatus = makeHint("")
+configStatus.Font = Enum.Font.GothamBold
+
+makeHeader("Сброс")
+makeButton("Сбросить к стандартным настройкам", COLORS.red, function()
+	for _, k in ipairs(SAVE_KEYS) do
+		CONFIG[k] = DEFAULTS[k]
 	end
 	enabled = true
 	applyConfig()
+	setStatus("Настройки сброшены к стандартным", COLORS.sub)
 end)
 
-selectTab("Аим")
+selectTab("aim")
 
 local function setMenu(open)
 	if open and not hasPass then
 		MarketplaceService:PromptGamePassPurchase(player, CONFIG.GamePassId)
 		return
 	end
-	menu.Visible = open
-	refreshAll()
+	if open == menuOpen then return end
+	menuOpen = open
+	if open then
+		menu.Visible = true
+		uiScale.Scale = baseScale * 0.9
+		tween(uiScale, { Scale = baseScale }, 0.2, Enum.EasingStyle.Back)
+		refreshAll()
+	else
+		local t = tween(uiScale, { Scale = baseScale * 0.9 }, 0.12)
+		t.Completed:Connect(function()
+			if not menuOpen then
+				menu.Visible = false
+			end
+		end)
+	end
 end
 
 menuBtn.Activated:Connect(function()
-	setMenu(not menu.Visible)
+	setMenu(not menuOpen)
 end)
 closeBtn.Activated:Connect(function()
 	setMenu(false)
@@ -806,47 +1288,160 @@ end)
 
 applyConfig()
 
+--==================== АВТОНАСТРОЙКА ====================--
+-- Если в CONFIG.Preset вставлен код из меню — применяем его при запуске
+if CONFIG.Preset ~= "" then
+	local n = importCode(CONFIG.Preset)
+	applyConfig()
+	if n > 0 then
+		setStatus("Автонастройка: применено " .. n .. " параметров из CONFIG.Preset", COLORS.accent)
+	else
+		setStatus("Код в CONFIG.Preset не распознан", COLORS.red)
+	end
+else
+	setStatus("Автонастройка не задана: CONFIG.Preset пустой", COLORS.sub)
+end
+
 --==================== УПРАВЛЕНИЕ ====================--
 UserInputService.InputBegan:Connect(function(input, processed)
-	if processed then return end -- не реагировать, когда пишешь в чат
-	if input.KeyCode == CONFIG.AimKey then
+	if input.UserInputType == CONFIG.AimHoldButton then
 		holding = true
-	elseif input.KeyCode == CONFIG.ToggleKey then
+		return
+	end
+	if processed then return end -- не реагировать, когда пишешь в чат
+	local key = input.KeyCode
+	if key == CONFIG.ToggleKey then
 		toggle()
-	elseif input.KeyCode == CONFIG.MenuKey then
-		setMenu(not menu.Visible)
-	elseif input.KeyCode == CONFIG.SpeedUpKey or input.KeyCode == Enum.KeyCode.KeypadPlus then
+	elseif key == CONFIG.MenuKey then
+		setMenu(not menuOpen)
+	elseif key == CONFIG.SpeedUpKey or key == Enum.KeyCode.KeypadPlus then
 		changeSpeed(1)
-	elseif input.KeyCode == CONFIG.SpeedDownKey or input.KeyCode == Enum.KeyCode.KeypadMinus then
+	elseif key == CONFIG.SpeedDownKey or key == Enum.KeyCode.KeypadMinus then
 		changeSpeed(-1)
-	elseif input.KeyCode == CONFIG.SnapKey then
+	elseif key == CONFIG.SnapKey then
 		toggleSnap()
 	end
 end)
 
 UserInputService.InputEnded:Connect(function(input)
-	if input.KeyCode == CONFIG.AimKey then
+	if input.UserInputType == CONFIG.AimHoldButton then
 		holding = false
 	end
 end)
 
--- Если окно игры потеряло фокус с зажатой F — отпускаем наводку
+-- Если окно игры потеряло фокус с зажатой кнопкой — отпускаем наводку
 UserInputService.WindowFocusReleased:Connect(function()
 	holding = false
 end)
 
 --==================== ЦЕЛИ ====================--
-local function isTeammate(plr)
-	if not plr then return false end
-	local myAttr = player:GetAttribute(CONFIG.TeamAttribute)
-	if myAttr ~= nil then
-		return plr:GetAttribute(CONFIG.TeamAttribute) == myAttr
+-- Определение команды. Игры делают команды по-разному, поэтому проверяем
+-- по очереди: атрибуты и значения (StringValue и т.п.) у игрока и персонажа,
+-- leaderstats, затем Teams и TeamColor.
+local TEAM_FIELDS = { CONFIG.TeamAttribute, "Team", "TeamName", "TeamId", "TeamID", "TeamColor", "Side", "Squad" }
+
+local function readTeam(inst)
+	if not inst then return nil end
+	for _, field in ipairs(TEAM_FIELDS) do
+		local ok, attr = pcall(inst.GetAttribute, inst, field)
+		if ok and attr ~= nil and attr ~= "" then
+			return tostring(attr)
+		end
+		local v = inst:FindFirstChild(field)
+		if v and v:IsA("ValueBase") then
+			local val = v.Value
+			if typeof(val) == "Instance" then
+				return val.Name
+			elseif val ~= nil and val ~= "" then
+				return tostring(val)
+			end
+		end
 	end
-	if player.Team ~= nil and #Teams:GetTeams() > 1 then
-		return plr.Team == player.Team
-	end
-	return false
+	return nil
 end
+
+-- Ключ команды игрока и как он найден (nil, если команды нет)
+local function teamOf(plr)
+	if not plr then return nil, nil end
+	local k = readTeam(plr)
+	if k then return "a:" .. k, "атрибут игрока" end
+	k = readTeam(plr.Character)
+	if k then return "a:" .. k, "атрибут персонажа" end
+	k = readTeam(plr:FindFirstChild("leaderstats"))
+	if k then return "a:" .. k, "leaderstats" end
+	if plr.Team then return "t:" .. plr.Team.Name, "Teams" end
+	if not plr.Neutral then return "c:" .. plr.TeamColor.Name, "TeamColor" end
+	return nil, nil
+end
+
+-- Команды всех игроков пересчитываются 4 раза в секунду, а не на каждую проверку
+local teamCache = { at = -1, keys = {}, mine = nil, ffa = false }
+local function updateTeamCache()
+	if os.clock() - teamCache.at < 0.25 then return end
+	teamCache.at = os.clock()
+	local keys = {}
+	local mine = teamOf(player)
+	local all, same = 0, 0
+	for _, plr in ipairs(Players:GetPlayers()) do
+		local k = teamOf(plr)
+		keys[plr] = k or false
+		all += 1
+		if k ~= nil and k == mine then
+			same += 1
+		end
+	end
+	teamCache.keys = keys
+	teamCache.mine = mine
+	-- Все игроки в одной «команде» (лобби, каждый за себя) — значит своих нет
+	teamCache.ffa = all >= 3 and same == all
+end
+
+local function isTeammate(plr)
+	if not plr or plr == player then return false end
+	if CONFIG.TeamMode == "Off" then return false end
+	updateTeamCache()
+	if teamCache.ffa or not teamCache.mine then return false end
+	local theirs = teamCache.keys[plr]
+	if theirs == nil then
+		theirs = teamOf(plr) or false
+	end
+	return theirs ~= false and theirs == teamCache.mine
+end
+
+-- Строка во вкладке «Аим»: какую команду нашёл скрипт
+task.spawn(function()
+	while true do
+		task.wait(1)
+		if teamInfoLabel and menuOpen then
+			local text
+			if CONFIG.TeamMode == "Off" then
+				text = "Команды выключены: все игроки — враги"
+			else
+				updateTeamCache()
+				local key, how = teamOf(player)
+				local mates, foes = 0, 0
+				for _, plr in ipairs(Players:GetPlayers()) do
+					if plr ~= player then
+						if isTeammate(plr) then
+							mates += 1
+						else
+							foes += 1
+						end
+					end
+				end
+				if not key then
+					text = "Команда не найдена — все игроки считаются врагами"
+				else
+					text = string.format("Твоя команда: %s (%s)%s\nСвоих: %d  •  Врагов: %d",
+						string.sub(key, 3), how,
+						teamCache.ffa and ", все в одной — каждый за себя" or "",
+						mates, foes)
+				end
+			end
+			teamInfoLabel.Text = text
+		end
+	end
+end)
 
 local npcCache, lastNpcScan = {}, 0
 local function scanNPCs()
@@ -1071,6 +1666,8 @@ end
 -- Проверка стен: пропускает камеру (там модель оружия), прозрачные и проходимые детали
 local function isVisible(camera, part, targetChar)
 	if not CONFIG.WallCheck then return true end
+	-- Зажата ПКМ и включено «сквозь стены» — стены не мешают
+	if holding and CONFIG.HoldThroughWalls and not isMobile then return true end
 	local origin = camera.CFrame.Position
 	local dir = part.Position - origin
 	local ignore = { targetChar, player.Character, camera }
@@ -1166,7 +1763,7 @@ local function getClosestTarget(camera, targets, current)
 end
 
 local function wantsAim()
-	if not (hasPass and enabled) or menu.Visible then return false end
+	if not (hasPass and enabled) or menuOpen then return false end
 	if CONFIG.HoldToAim and not isMobile and not holding then return false end
 	return aliveHumanoid(player.Character) ~= nil
 end
@@ -1262,7 +1859,7 @@ RunService:BindToRenderStep("AimBotMain", Enum.RenderPriority.Camera.Value + 1, 
 	if lockedTarget and CONFIG.ShowTargetInfo then
 		local myRoot = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
 		local d = myRoot and math.floor((lockedPart.Position - myRoot.Position).Magnitude + 0.5) or 0
-		targetInfo.Text = "🎯 " .. lockedTarget.name .. "  •  " .. d .. " м"
+		targetInfo.Text = "Цель: " .. lockedTarget.name .. "  •  " .. d .. " м"
 		targetInfo.Visible = true
 	else
 		targetInfo.Visible = false
