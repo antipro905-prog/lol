@@ -9,17 +9,12 @@
 	  ПКМ (зажать) — навестись на ближайшего врага, в том числе сквозь стены.
 	Телефон: кнопки AIM, МЕНЮ и «−  MAX  +» справа.
 
-	Сохранение настроек:
-	  Всё, что игрок поменял в меню, сохраняется само и загружается при
-	  следующем входе. Для этого нужен серверный скрипт AimBotConfigServer
-	  (Script в ServerScriptService): LocalScript не может сам хранить
-	  данные после выхода из игры — это умеет только сервер (DataStore).
-	  Без серверного скрипта работает только CONFIG.Preset.
-
-	Автонастройка (CONFIG.Preset):
-	  В меню, вкладка «Конфиг», показаны все текущие настройки и их код.
-	  Вставь код в CONFIG.Preset ниже — он применится при входе,
-	  если у игрока ещё нет своих сохранённых настроек.
+	Настройки запоминаются сами:
+	  Как игрок настроил скрипт в меню, так он и включится в следующий раз.
+	  При самом первом включении меню открывается само — настрой всё под себя.
+	  Каждое изменение сохраняется через 1.5 с. Для этого в игре нужен
+	  серверный скрипт AimBotConfigServer (Script в ServerScriptService):
+	  LocalScript не может хранить данные после выхода — это делает сервер.
 
 	Команды (свой / враг):
 	  Скрипт ищет команду игрока по очереди: атрибуты и значения у игрока
@@ -62,11 +57,6 @@ local player = Players.LocalPlayer
 -- сохраняется и при следующем входе загружается само.
 local CONFIG = {
 	GamePassId = 0,            -- ID геймпасса (0 = бесплатно, для теста)
-
-	-- Автонастройка: вставь сюда код из меню (вкладка «Конфиг»).
-	-- Применяется при входе, если у игрока нет своих сохранённых настроек.
-	-- "" = не применять.
-	Preset = "",
 
 	-- Аим
 	AimMode = "Override",      -- "Override" = режим Rivals, "Classic" = обычная камера Roblox
@@ -392,12 +382,12 @@ end)
 
 --==================== КОНФИГ (ядро) ====================--
 -- Какие настройки входят в конфиг: все простые значения из CONFIG,
--- кроме служебных (геймпасс, имя атрибута команды, сам код) и клавиш.
+-- кроме служебных (геймпасс, имя атрибута команды) и клавиш.
 local SAVE_KEYS = {}
 for k, v in pairs(DEFAULTS) do
 	local t = typeof(v)
 	if (t == "boolean" or t == "number" or t == "string")
-		and k ~= "GamePassId" and k ~= "TeamAttribute" and k ~= "Preset" then
+		and k ~= "GamePassId" and k ~= "TeamAttribute" then
 		table.insert(SAVE_KEYS, k)
 	end
 end
@@ -1106,36 +1096,6 @@ local function makeSettingsList()
 	end
 end
 
--- Поле с кодом (можно выделить и скопировать, или вставить свой)
-local function makeCodeBox(placeholder, height)
-	local box = Instance.new("TextBox")
-	box.Size = UDim2.new(1, 0, 0, height)
-	box.BackgroundColor3 = COLORS.bg
-	box.ClearTextOnFocus = false
-	box.MultiLine = true
-	box.TextWrapped = true
-	box.TextXAlignment = Enum.TextXAlignment.Left
-	box.TextYAlignment = Enum.TextYAlignment.Top
-	box.Font = Enum.Font.Code
-	box.TextSize = 12
-	box.TextColor3 = COLORS.text
-	box.PlaceholderText = placeholder
-	box.PlaceholderColor3 = COLORS.sub
-	box.Text = ""
-	box.LayoutOrder = nextOrder()
-	box.ZIndex = 12
-	box.Parent = currentPage
-	corner(box, 9)
-	outline(box, COLORS.stroke, 1, 0)
-	local pad = Instance.new("UIPadding")
-	pad.PaddingTop = UDim.new(0, 8)
-	pad.PaddingBottom = UDim.new(0, 8)
-	pad.PaddingLeft = UDim.new(0, 10)
-	pad.PaddingRight = UDim.new(0, 10)
-	pad.Parent = box
-	return box
-end
-
 --------- Вкладка АИМ ---------
 currentPage = makePage("aim", "Аим")
 makeHeader("Основное")
@@ -1197,37 +1157,14 @@ makeSlider("Макс. дистанция", "ESPMaxDistance", 50, 3000, 50, 0, " 
 
 --------- Вкладка КОНФИГ ---------
 currentPage = makePage("cfg", "Конфиг")
+makeHeader("Сохранение")
+configStatus = makeHint("Загрузка твоих настроек…")
+configStatus.Font = Enum.Font.GothamBold
+configStatus.TextSize = 13
+makeHint("Скрипт сам запоминает, как ты всё настроил, и при следующем включении ставит эти же настройки. Ничего копировать не нужно.")
+
 makeHeader("Текущие настройки")
 makeSettingsList()
-
-makeHeader("Автонастройка")
-makeHint("Настройки сохраняются сами и загружаются при следующем входе. Ниже код текущих настроек: его можно вставить в CONFIG.Preset в начале скрипта — тогда он применится у игроков, у которых ещё нет своих сохранённых настроек.")
-local exportBox = makeCodeBox("", 92)
-exportBox.Text = exportCode()
-table.insert(refreshers, function()
-	if not exportBox:IsFocused() then
-		exportBox.Text = exportCode()
-	end
-end)
--- Поле только для копирования: после правки возвращаем настоящий код
-exportBox.FocusLost:Connect(function()
-	exportBox.Text = exportCode()
-end)
-
-makeHeader("Применить код")
-local importBox = makeCodeBox("Вставь сюда код конфига", 64)
-makeButton("Применить код", COLORS.accent, function()
-	local n = importCode(importBox.Text)
-	if n > 0 then
-		applyConfig()
-		importBox.Text = ""
-		setStatus("Код применён: " .. n .. " параметров", COLORS.accent)
-	else
-		setStatus("Код не распознан — скопируй его целиком из поля выше", COLORS.red)
-	end
-end)
-configStatus = makeHint("")
-configStatus.Font = Enum.Font.GothamBold
 
 makeHeader("Сброс")
 makeButton("Сбросить к стандартным настройкам", COLORS.red, function()
@@ -1307,26 +1244,48 @@ end)
 
 applyConfig()
 
---==================== СОХРАНЕНИЕ И АВТОНАСТРОЙКА ====================--
--- Что применяется при входе (по порядку):
---   1) сохранённые настройки игрока (если есть серверный скрипт AimBotConfigServer);
---   2) код из CONFIG.Preset;
---   3) значения по умолчанию.
-local function applyPreset()
-	if CONFIG.Preset == "" then return false end
-	local n = importCode(CONFIG.Preset)
-	applyConfig()
-	return n > 0
+--==================== СОХРАНЕНИЕ НАСТРОЕК ====================--
+-- При включении скрипт ставит настройки, которые игрок выставил в прошлый раз.
+-- При самом первом включении меню открывается само: как игрок всё настроит,
+-- так и запомнится. Любое изменение сохраняется через 1.5 с.
+
+-- Всплывающая надпись сверху экрана
+local toast = Instance.new("TextLabel")
+toast.Name = "Toast"
+toast.AnchorPoint = Vector2.new(0.5, 0)
+toast.Position = UDim2.new(0.5, 0, 0, 138)
+toast.Size = UDim2.fromOffset(0, 30)
+toast.AutomaticSize = Enum.AutomaticSize.X
+toast.BackgroundColor3 = COLORS.bg
+toast.BackgroundTransparency = 0.1
+toast.Font = Enum.Font.GothamBold
+toast.TextSize = 14
+toast.Visible = false
+toast.Parent = gui
+corner(toast, 8)
+local toastPad = Instance.new("UIPadding")
+toastPad.PaddingLeft = UDim.new(0, 14)
+toastPad.PaddingRight = UDim.new(0, 14)
+toastPad.Parent = toast
+
+local toastId = 0
+local function showToast(text, color, seconds)
+	toastId += 1
+	local id = toastId
+	toast.Text = text
+	toast.TextColor3 = color or COLORS.text
+	toast.Visible = true
+	task.delay(seconds or 3, function()
+		if toastId == id then
+			toast.Visible = false
+		end
+	end)
 end
 
 task.spawn(function()
 	local remote = ReplicatedStorage:WaitForChild("AimBotConfig", 8)
 	if not remote then
-		if applyPreset() then
-			setStatus("Применён CONFIG.Preset. Чтобы настройки сохранялись между входами, добавь AimBotConfigServer", COLORS.gold)
-		else
-			setStatus("Настройки не сохранятся после выхода: нет серверного скрипта AimBotConfigServer", COLORS.gold)
-		end
+		setStatus("Настройки не запомнятся после выхода: в игре нет скрипта AimBotConfigServer", COLORS.gold)
 		return
 	end
 
@@ -1334,22 +1293,27 @@ task.spawn(function()
 		return remote:InvokeServer("load")
 	end)
 	if not (ok and type(res) == "table" and res.ok) then
-		applyPreset()
-		setStatus("Хранилище недоступно — настройки не сохранятся. В Studio включи доступ к API (см. серверный скрипт)", COLORS.red)
+		setStatus("Хранилище недоступно — настройки не запомнятся. В Studio включи доступ к API (см. серверный скрипт)", COLORS.red)
 		return
 	end
 
+	local lastSaved
 	if type(res.code) == "string" and res.code ~= "" then
-		local n = importCode(res.code)
+		-- Не первое включение: ставим то, как игрок настроил в прошлый раз
+		importCode(res.code)
 		applyConfig()
-		setStatus("Загружены твои сохранённые настройки (" .. n .. " параметров)", COLORS.accent)
-	elseif applyPreset() then
-		setStatus("Применён CONFIG.Preset. Дальше настройки сохраняются сами", COLORS.accent)
+		lastSaved = exportCode()
+		setStatus("Твои настройки загружены — как ты настроил в прошлый раз", COLORS.accent)
+		showToast("Твои настройки загружены", COLORS.accent, 3)
 	else
-		setStatus("Настройки сохраняются автоматически", COLORS.sub)
+		-- Первое включение: открываем меню, чтобы игрок настроил всё под себя.
+		-- Сразу сохраняем, чтобы следующее включение уже не считалось первым.
+		lastSaved = ""
+		dirtyAt = os.clock()
+		setStatus("Первое включение: настрой всё под себя — скрипт это запомнит", COLORS.gold)
+		showToast("Первое включение: настрой аим под себя — скрипт запомнит настройки", COLORS.gold, 6)
+		setMenu(true)
 	end
-
-	local lastSaved = exportCode()
 	persistReady = true
 
 	while true do
@@ -1363,7 +1327,7 @@ task.spawn(function()
 				end)
 				if okSave and saved then
 					lastSaved = code
-					setStatus("Сохранено в " .. os.date("%H:%M"), COLORS.accent)
+					setStatus("Сохранено в " .. os.date("%H:%M") .. " — при следующем включении настройки применятся сами", COLORS.accent)
 				else
 					dirtyAt = os.clock() -- повторим через пару секунд
 					setStatus("Не удалось сохранить, пробую ещё раз", COLORS.red)
