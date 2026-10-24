@@ -9,10 +9,17 @@
 	  ПКМ (зажать) — навестись на ближайшего врага, в том числе сквозь стены.
 	Телефон: кнопки AIM, МЕНЮ и «−  MAX  +» справа.
 
-	Автонастройка:
+	Сохранение настроек:
+	  Всё, что игрок поменял в меню, сохраняется само и загружается при
+	  следующем входе. Для этого нужен серверный скрипт AimBotConfigServer
+	  (Script в ServerScriptService): LocalScript не может сам хранить
+	  данные после выхода из игры — это умеет только сервер (DataStore).
+	  Без серверного скрипта работает только CONFIG.Preset.
+
+	Автонастройка (CONFIG.Preset):
 	  В меню, вкладка «Конфиг», показаны все текущие настройки и их код.
-	  Скопируй код и вставь его в CONFIG.Preset ниже — при каждом запуске
-	  скрипт сам выставит эти параметры.
+	  Вставь код в CONFIG.Preset ниже — он применится при входе,
+	  если у игрока ещё нет своих сохранённых настроек.
 
 	Команды (свой / враг):
 	  Скрипт ищет команду игрока по очереди: атрибуты и значения у игрока
@@ -46,6 +53,7 @@ local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local MarketplaceService = game:GetService("MarketplaceService")
 local TweenService = game:GetService("TweenService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local player = Players.LocalPlayer
 
@@ -55,8 +63,9 @@ local player = Players.LocalPlayer
 local CONFIG = {
 	GamePassId = 0,            -- ID геймпасса (0 = бесплатно, для теста)
 
-	-- Автонастройка: вставь сюда код из меню (вкладка «Конфиг»),
-	-- и при каждом запуске скрипт сам применит эти настройки. "" = не применять.
+	-- Автонастройка: вставь сюда код из меню (вкладка «Конфиг»).
+	-- Применяется при входе, если у игрока нет своих сохранённых настроек.
+	-- "" = не применять.
 	Preset = "",
 
 	-- Аим
@@ -518,6 +527,16 @@ local function setStatus(text, color)
 	if configStatus then
 		configStatus.Text = text
 		configStatus.TextColor3 = color or COLORS.sub
+	end
+end
+
+-- Автосохранение: любое изменение настроек отмечает время,
+-- а через 1.5 с после последнего изменения настройки уходят на сервер.
+local persistReady = false   -- true, когда сохранённые настройки уже загружены
+local dirtyAt = nil
+onSettingsChanged = function()
+	if persistReady then
+		dirtyAt = os.clock()
 	end
 end
 
@@ -1182,7 +1201,7 @@ makeHeader("Текущие настройки")
 makeSettingsList()
 
 makeHeader("Автонастройка")
-makeHint("Это код твоих текущих настроек. Выдели его (Ctrl+A), скопируй (Ctrl+C) и вставь в CONFIG.Preset в начале скрипта. Тогда при каждом запуске скрипт сам выставит эти параметры.")
+makeHint("Настройки сохраняются сами и загружаются при следующем входе. Ниже код текущих настроек: его можно вставить в CONFIG.Preset в начале скрипта — тогда он применится у игроков, у которых ещё нет своих сохранённых настроек.")
 local exportBox = makeCodeBox("", 92)
 exportBox.Text = exportCode()
 table.insert(refreshers, function()
@@ -1288,19 +1307,71 @@ end)
 
 applyConfig()
 
---==================== АВТОНАСТРОЙКА ====================--
--- Если в CONFIG.Preset вставлен код из меню — применяем его при запуске
-if CONFIG.Preset ~= "" then
+--==================== СОХРАНЕНИЕ И АВТОНАСТРОЙКА ====================--
+-- Что применяется при входе (по порядку):
+--   1) сохранённые настройки игрока (если есть серверный скрипт AimBotConfigServer);
+--   2) код из CONFIG.Preset;
+--   3) значения по умолчанию.
+local function applyPreset()
+	if CONFIG.Preset == "" then return false end
 	local n = importCode(CONFIG.Preset)
 	applyConfig()
-	if n > 0 then
-		setStatus("Автонастройка: применено " .. n .. " параметров из CONFIG.Preset", COLORS.accent)
-	else
-		setStatus("Код в CONFIG.Preset не распознан", COLORS.red)
-	end
-else
-	setStatus("Автонастройка не задана: CONFIG.Preset пустой", COLORS.sub)
+	return n > 0
 end
+
+task.spawn(function()
+	local remote = ReplicatedStorage:WaitForChild("AimBotConfig", 8)
+	if not remote then
+		if applyPreset() then
+			setStatus("Применён CONFIG.Preset. Чтобы настройки сохранялись между входами, добавь AimBotConfigServer", COLORS.gold)
+		else
+			setStatus("Настройки не сохранятся после выхода: нет серверного скрипта AimBotConfigServer", COLORS.gold)
+		end
+		return
+	end
+
+	local ok, res = pcall(function()
+		return remote:InvokeServer("load")
+	end)
+	if not (ok and type(res) == "table" and res.ok) then
+		applyPreset()
+		setStatus("Хранилище недоступно — настройки не сохранятся. В Studio включи доступ к API (см. серверный скрипт)", COLORS.red)
+		return
+	end
+
+	if type(res.code) == "string" and res.code ~= "" then
+		local n = importCode(res.code)
+		applyConfig()
+		setStatus("Загружены твои сохранённые настройки (" .. n .. " параметров)", COLORS.accent)
+	elseif applyPreset() then
+		setStatus("Применён CONFIG.Preset. Дальше настройки сохраняются сами", COLORS.accent)
+	else
+		setStatus("Настройки сохраняются автоматически", COLORS.sub)
+	end
+
+	local lastSaved = exportCode()
+	persistReady = true
+
+	while true do
+		task.wait(1)
+		if dirtyAt and os.clock() - dirtyAt > 1.5 then
+			dirtyAt = nil
+			local code = exportCode()
+			if code ~= lastSaved then
+				local okSave, saved = pcall(function()
+					return remote:InvokeServer("save", code)
+				end)
+				if okSave and saved then
+					lastSaved = code
+					setStatus("Сохранено в " .. os.date("%H:%M"), COLORS.accent)
+				else
+					dirtyAt = os.clock() -- повторим через пару секунд
+					setStatus("Не удалось сохранить, пробую ещё раз", COLORS.red)
+				end
+			end
+		end
+	end
+end)
 
 --==================== УПРАВЛЕНИЕ ====================--
 UserInputService.InputBegan:Connect(function(input, processed)
