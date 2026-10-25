@@ -3396,17 +3396,21 @@ local function setupAim()
 
 	local lockSeenAt = 0
 
+	local KEEP_RADIUS = 1.5
+	local MIN_GRACE = 0.2
+
 	local function getClosestTarget(cam, targets, current)
 		local center = getAimCenter(cam)
 
 		if current and AIM.StickyTarget then
-			local part = checkTarget(cam, current, center, AIM.FOV)
+			local part = checkTarget(cam, current, center, AIM.FOV * KEEP_RADIUS)
 			if part then
 				lockSeenAt = os.clock()
 				return part, current
 			end
-			if os.clock() - lockSeenAt < AIM.LockGrace
-				and current.char.Parent and aliveHumanoid(current.char) then
+			if os.clock() - lockSeenAt < math.max(AIM.LockGrace, MIN_GRACE)
+				and current.char.Parent and aliveHumanoid(current.char)
+				and not (AIM.TeamCheck and isTeammate(current.plr)) then
 				local p = getAimPart(current.char)
 				if p then
 					return p, current
