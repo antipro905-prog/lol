@@ -229,6 +229,8 @@ local TEXTS = {
 	["AIM: OFF"] = { ru = "АИМ: ВЫКЛ", gd = "AMAS: DHETH", fr = "VISÉE : OFF" },
 	["Instant aim"] = { ru = "Мгновенная наводка", gd = "Amas sa bhad", fr = "Visée instantanée" },
 	["Aim speed: %d%%"] = { ru = "Скорость наводки: %d%%", gd = "Luaths amais: %d%%", fr = "Vitesse de visée : %d%%" },
+	["Knife: no enemy closer than %d studs"] = { ru = "Нож: нет врага ближе %d студов", gd = "Sgian: chan eil nàmhaid nas fhaisge na %d studs", fr = "Couteau : aucun ennemi à moins de %d studs" },
+	["No target  •  teammates: %d  •  outside circle: %d  •  behind walls: %d  •  shield: %d"] = { ru = "Нет цели  •  свои: %d  •  вне круга: %d  •  за стеной: %d  •  щит: %d", gd = "Gun targaid  •  sgioba: %d  •  taobh a-muigh: %d  •  air cùl balla: %d  •  sgiath: %d", fr = "Aucune cible  •  alliés : %d  •  hors cercle : %d  •  derrière un mur : %d  •  bouclier : %d" },
 	["Target: %s  •  %d m"] = { ru = "Цель: %s  •  %d м", gd = "Targaid: %s  •  %d m", fr = "Cible : %s  •  %d m" },
 
 	["Aim"] = { ru = "Аим", gd = "Amas", fr = "Visée" },
@@ -2299,7 +2301,7 @@ local function setupAim()
 	}
 	local DEFAULTS = table.clone(AIM)
 
-	local enabled = true
+	local enabled = false
 	local holding = false
 	local hasPass = (AIM.GamePassId == 0)
 	local isMobile = UserInputService.TouchEnabled and not UserInputService.MouseEnabled
@@ -2372,7 +2374,12 @@ local function setupAim()
 	targetInfo.TextSize = 15
 	targetInfo.TextColor3 = COLORS.enemy
 	targetInfo.Visible = false
+	targetInfo.AutomaticSize = Enum.AutomaticSize.X
 	targetInfo.Parent = hud
+	local targetPad = Instance.new("UIPadding")
+	targetPad.PaddingLeft = UDim.new(0, 12)
+	targetPad.PaddingRight = UDim.new(0, 12)
+	targetPad.Parent = targetInfo
 	corner(targetInfo, 8)
 	outline(targetInfo, COLORS.accent, 1.5, 0.35)
 
@@ -2580,7 +2587,6 @@ local function setupAim()
 			local k, v = string.match(pair, "^%s*([%w_]+)%s*=%s*(.-)%s*$")
 			if k == "enabled" then
 				if v == "1" or v == "0" then
-					enabled = (v == "1")
 					applied += 1
 				end
 			elseif k and table.find(SAVE_KEYS, k) then
@@ -2835,7 +2841,7 @@ local function setupAim()
 				AIM[k] = DEFAULTS[k]
 			end
 		end
-		enabled = true
+		enabled = false
 		applyConfig()
 		setStatus("Settings reset to default", COMMON.SubText)
 	end)
@@ -3053,7 +3059,7 @@ local function setupAim()
 		end
 		teamCache.keys = keys
 		teamCache.mine = mine
-		teamCache.ffa = all >= 3 and same == all
+		teamCache.ffa = all >= 2 and same == all
 	end
 
 	local function isTeammate(plr)
@@ -3297,9 +3303,17 @@ local function setupAim()
 	local function getAimCenter(cam)
 		local vs = cam.ViewportSize
 		if isMobile or UserInputService.MouseBehavior == Enum.MouseBehavior.LockCenter then
-			return Vector2.new(vs.X / 2, vs.Y / 2)
+			return Vector2.new(vs.X / 2, vs.Y / 2), true
 		end
-		return UserInputService:GetMouseLocation()
+		return UserInputService:GetMouseLocation(), false
+	end
+
+	local function aimRayDirection(cam)
+		local center, centered = getAimCenter(cam)
+		if centered then
+			return cam.CFrame.LookVector
+		end
+		return cam:ViewportPointToRay(center.X, center.Y).Direction.Unit
 	end
 
 	local PART_NAMES = {
@@ -3386,7 +3400,7 @@ local function setupAim()
 		local center = getAimCenter(cam)
 
 		if current and AIM.StickyTarget then
-			local part = checkTarget(cam, current, center, AIM.FOV * 2)
+			local part = checkTarget(cam, current, center, AIM.FOV)
 			if part then
 				lockSeenAt = os.clock()
 				return part, current
@@ -3505,6 +3519,17 @@ local function setupAim()
 		return CFrame.lookAt(pos, pos + look)
 	end
 
+	local function wantedLook(cam, part)
+		local camCF = cam.CFrame
+		local want = (aimPosition(part) - camCF.Position).Unit
+		local center, centered = getAimCenter(cam)
+		if centered then
+			return want
+		end
+		local mouseDirection = cam:ViewportPointToRay(center.X, center.Y).Direction.Unit
+		return rotationBetween(mouseDirection, want):VectorToWorldSpace(camCF.LookVector).Unit
+	end
+
 	local lockedPart, lockedTarget = nil, nil
 	local aimLook = nil
 
@@ -3527,6 +3552,42 @@ local function setupAim()
 			return want
 		end
 		return newLook
+	end
+
+	local diagnoseAt, diagnoseText = 0, ""
+	local function diagnose(cam, targets)
+		if os.clock() - diagnoseAt < 0.25 then
+			return diagnoseText
+		end
+		diagnoseAt = os.clock()
+		if knifeMode then
+			diagnoseText = trf("Knife: no enemy closer than %d studs", AIM.KnifeRange)
+			return diagnoseText
+		end
+		local center = getAimCenter(cam)
+		local mates, outside, walls, shields = 0, 0, 0, 0
+		for _, t in ipairs(targets) do
+			local char = t.char
+			if aliveHumanoid(char) then
+				if AIM.TeamCheck and isTeammate(t.plr) then
+					mates += 1
+				elseif char:FindFirstChildOfClass("ForceField") then
+					shields += 1
+				else
+					local part = getAimPart(char)
+					if part then
+						local sp, onScreen = cam:WorldToViewportPoint(part.Position)
+						if not onScreen or (Vector2.new(sp.X, sp.Y) - center).Magnitude >= AIM.FOV then
+							outside += 1
+						elseif not isVisible(cam, part, char) then
+							walls += 1
+						end
+					end
+				end
+			end
+		end
+		diagnoseText = trf("No target  •  teammates: %d  •  outside circle: %d  •  behind walls: %d  •  shield: %d", mates, outside, walls, shields)
+		return diagnoseText
 	end
 
 	RunService:BindToRenderStep("AimMain", Enum.RenderPriority.Camera.Value + 1, function(dt)
@@ -3562,6 +3623,11 @@ local function setupAim()
 			local myRoot = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
 			local d = myRoot and math.floor((lockedPart.Position - myRoot.Position).Magnitude + 0.5) or 0
 			targetInfo.Text = trf("Target: %s  •  %d m", lockedTarget.name, d)
+			targetInfo.TextColor3 = COLORS.enemy
+			targetInfo.Visible = true
+		elseif AIM.ShowTargetInfo and (knifeMode or wantsAim()) then
+			targetInfo.Text = diagnose(cam, targets)
+			targetInfo.TextColor3 = Color3.fromRGB(200, 200, 210)
 			targetInfo.Visible = true
 		else
 			targetInfo.Visible = false
@@ -3569,7 +3635,7 @@ local function setupAim()
 
 		if AIM.AimMode == "Classic" and lockedPart then
 			local camPos = cam.CFrame.Position
-			local want = (aimPosition(lockedPart) - camPos).Unit
+			local want = wantedLook(cam, lockedPart)
 			local look = trackLook(cam.CFrame.LookVector, want, dt)
 			cam.CFrame = lookCFrame(camPos, look)
 		end
@@ -3587,8 +3653,7 @@ local function setupAim()
 		local cam = workspace.CurrentCamera
 		if not cam then return end
 
-		local camPos = cam.CFrame.Position
-		local want = (aimPosition(lockedPart) - camPos).Unit
+		local want = wantedLook(cam, lockedPart)
 		aimLook = trackLook(aimLook or cam.CFrame.LookVector, want, dt)
 
 		applyOverride(cam)
@@ -3640,7 +3705,7 @@ local function setupAim()
 			end
 		elseif cam and lockedPart and autoShootAllowed() and wantsAim() then
 			local dir = (aimPosition(lockedPart) - cam.CFrame.Position).Unit
-			local dot = math.clamp(cam.CFrame.LookVector:Dot(dir), -1, 1)
+			local dot = math.clamp(aimRayDirection(cam):Dot(dir), -1, 1)
 			shouldFire = math.deg(math.acos(dot)) <= AIM.AutoShootAngle
 		end
 
