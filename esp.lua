@@ -258,6 +258,10 @@ local TEXTS = {
 	["Instant Aim"] = { ru = "Мгновенная наводка", gd = "Amas sa bhad", fr = "Visée instantanée" },
 	["%s — on / off, %s / %s — speed"] = { ru = "%s — вкл / выкл, %s / %s — скорость", gd = "%s — air / dheth, %s / %s — luaths", fr = "%s — on / off, %s / %s — vitesse" },
 	["Aim Height"] = { ru = "Высота прицела в голове", gd = "Àirde an amais sa cheann", fr = "Hauteur de visée sur la tête" },
+	["Turn Body To Target"] = { ru = "Поворачивать тело к цели", gd = "Tionndaidh a' bhodhaig ris an targaid", fr = "Tourner le corps vers la cible" },
+	["The character faces the enemy — no shooting with your back"] = { ru = "Персонаж смотрит на врага — без стрельбы спиной", gd = "Bidh an caractar a' coimhead air an nàmhaid — gun losgadh le do dhruim", fr = "Le personnage fait face à l'ennemi — plus de tir de dos" },
+	["Hold Mouse On Target"] = { ru = "Мышка не мешает аиму", gd = "Cùm an luchag air an targaid", fr = "Souris bloquée sur la cible" },
+	["The mouse doesn't turn the camera and arm while locked"] = { ru = "Пока цель захвачена, мышка не крутит камеру и руку", gd = "Cha tionndaidh an luchag an camara 's an gàirdean fhad 's a tha targaid ann", fr = "La souris ne tourne pas la caméra et le bras pendant le verrouillage" },
 	["Lock"] = { ru = "Захват", gd = "Glasadh", fr = "Verrouillage" },
 	["FOV Radius"] = { ru = "Радиус FOV", gd = "Rèideas FOV", fr = "Rayon du FOV" },
 	["Prediction"] = { ru = "Упреждение", gd = "Ro-innse", fr = "Anticipation" },
@@ -2279,6 +2283,8 @@ local function setupAim()
 		Language = currentLanguage,
 		HeadOnly = true,
 		AimHeight = 0.2,
+		FreezeMouse = true,
+		TurnBody = true,
 		KnifeAim = true,
 		KnifeHold = false,
 		KnifeRange = 15,
@@ -2788,6 +2794,8 @@ local function setupAim()
 		return v .. " ms"
 	end)
 	aimToggle(aimPage, "Keep Target", "Don't jump between players", "StickyTarget")
+	aimToggle(aimPage, "Hold Mouse On Target", "The mouse doesn't turn the camera and arm while locked", "FreezeMouse")
+	aimToggle(aimPage, "Turn Body To Target", "The character faces the enemy — no shooting with your back", "TurnBody")
 	aimSlider(aimPage, "Keep After Cover", "LockGrace", 0, 1000, 1000, function(v)
 		return v .. " ms"
 	end)
@@ -3523,6 +3531,30 @@ local function setupAim()
 		return CFrame.lookAt(pos, pos + look)
 	end
 
+	local mouseFrozen, savedSensitivity = false, 1
+	local function freezeMouse(frozen)
+		if frozen == mouseFrozen then
+			return
+		end
+		pcall(function()
+			if frozen then
+				local current = UserInputService.MouseDeltaSensitivity
+				if current > 0 then
+					savedSensitivity = current
+				end
+				UserInputService.MouseDeltaSensitivity = 0
+			elseif UserInputService.MouseDeltaSensitivity == 0 then
+				-- only give the sensitivity back if the game did not change it itself
+				-- (for example its own aim-down-sights sensitivity)
+				UserInputService.MouseDeltaSensitivity = savedSensitivity
+			end
+		end)
+		mouseFrozen = frozen
+	end
+	gui.Destroying:Connect(function()
+		freezeMouse(false)
+	end)
+
 	local function wantedLook(cam, part)
 		local camCF = cam.CFrame
 		local want = (aimPosition(part) - camCF.Position).Unit
@@ -3594,7 +3626,12 @@ local function setupAim()
 		return diagnoseText
 	end
 
-	RunService:BindToRenderStep("AimMain", Enum.RenderPriority.Camera.Value + 1, function(dt)
+	-- FIX: the aim turns the camera BEFORE the game camera runs (Camera - 1).
+	-- The game camera then starts from the aim direction, and the weapon / arm scripts of
+	-- the game place the weapon with the final direction in the same frame. Before, the
+	-- camera was turned after the weapon was already placed, so while you moved the
+	-- weapon slid out of the sight by the amount the aim turned that frame.
+	RunService:BindToRenderStep("AimMain", Enum.RenderPriority.Camera.Value - 1, function(dt)
 		local cam = workspace.CurrentCamera
 		if not cam then return end
 
@@ -3622,6 +3659,9 @@ local function setupAim()
 			prevWant, prevChar = nil, nil
 		end
 		player:SetAttribute("AimPoint", lockedPart and aimPosition(lockedPart) or nil)
+		-- FIX: the mouse is frozen in any camera mode on PC, not only in Shift Lock,
+		-- so moving the mouse no longer turns the arm while the target is locked.
+		freezeMouse(lockedPart ~= nil and AIM.FreezeMouse and not isMobile)
 
 		if lockedTarget and AIM.ShowTargetInfo then
 			local myRoot = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
@@ -3637,11 +3677,18 @@ local function setupAim()
 			targetInfo.Visible = false
 		end
 
-		if AIM.AimMode == "Classic" and lockedPart then
+		if lockedPart and AIM.AimMode == "Override" then
+			local want = wantedLook(cam, lockedPart)
+			aimLook = trackLook(aimLook or cam.CFrame.LookVector, want, dt)
+			cam.CFrame = lookCFrame(cam.CFrame.Position, aimLook)
+		elseif lockedPart then
+			aimLook = nil
 			local camPos = cam.CFrame.Position
 			local want = wantedLook(cam, lockedPart)
 			local look = trackLook(cam.CFrame.LookVector, want, dt)
 			cam.CFrame = lookCFrame(camPos, look)
+		else
+			aimLook = nil
 		end
 	end)
 
@@ -3649,18 +3696,27 @@ local function setupAim()
 		cam.CFrame = lookCFrame(cam.CFrame.Position, aimLook)
 	end
 
-	RunService:BindToRenderStep("AimOverride", Enum.RenderPriority.Last.Value, function(dt)
-		if AIM.AimMode ~= "Override" or not lockedPart then
-			aimLook = nil
+	-- Rivals mode: if the game camera put the camera back, put the same aim direction back
+	-- right after it (before the weapon scripts) and once more at the end of the frame.
+	-- Nothing is recalculated here, so the weapon and the view stay together.
+	RunService:BindToRenderStep("AimOverrideEarly", Enum.RenderPriority.Camera.Value + 1, function()
+		if AIM.AimMode ~= "Override" or not lockedPart or not aimLook then
 			return
 		end
 		local cam = workspace.CurrentCamera
-		if not cam then return end
+		if cam then
+			applyOverride(cam)
+		end
+	end)
 
-		local want = wantedLook(cam, lockedPart)
-		aimLook = trackLook(aimLook or cam.CFrame.LookVector, want, dt)
-
-		applyOverride(cam)
+	RunService:BindToRenderStep("AimOverride", Enum.RenderPriority.Last.Value, function()
+		if AIM.AimMode ~= "Override" or not lockedPart or not aimLook then
+			return
+		end
+		local cam = workspace.CurrentCamera
+		if cam then
+			applyOverride(cam)
+		end
 	end)
 
 	RunService.RenderStepped:Connect(function()
@@ -3671,6 +3727,58 @@ local function setupAim()
 			end
 		end
 	end)
+
+	-- FIX: turn the character's body to the aim direction while a target is locked.
+	-- The game's own camera does not know the aim turned the view, so it kept the body
+	-- facing the old way: you shot with your back and the arm twisted to reach the enemy.
+	local bodyTurned, savedAutoRotate, turnedHumanoid = false, nil, nil
+
+	local function releaseBody()
+		if not bodyTurned then
+			return
+		end
+		bodyTurned = false
+		if turnedHumanoid and turnedHumanoid.Parent and savedAutoRotate ~= nil then
+			turnedHumanoid.AutoRotate = savedAutoRotate
+		end
+		turnedHumanoid, savedAutoRotate = nil, nil
+	end
+
+	local function turnBody(look)
+		local char = player.Character
+		local root = char and char:FindFirstChild("HumanoidRootPart")
+		local hum = char and char:FindFirstChildOfClass("Humanoid")
+		if not (root and hum) or hum.Sit then
+			releaseBody()
+			return
+		end
+		local flat = Vector3.new(look.X, 0, look.Z)
+		if flat.Magnitude < 1e-3 then
+			return
+		end
+		if not bodyTurned or turnedHumanoid ~= hum then
+			releaseBody()
+			bodyTurned = true
+			turnedHumanoid = hum
+			savedAutoRotate = hum.AutoRotate
+		end
+		hum.AutoRotate = false
+		local pos = root.Position
+		root.CFrame = CFrame.lookAt(pos, pos + flat.Unit)
+	end
+
+	RunService:BindToRenderStep("AimTurnBody", Enum.RenderPriority.Last.Value + 2, function()
+		local cam = workspace.CurrentCamera
+		if not (cam and lockedPart and AIM.TurnBody) then
+			releaseBody()
+			return
+		end
+		turnBody(aimLook or cam.CFrame.LookVector)
+	end)
+	player.CharacterAdded:Connect(function()
+		bodyTurned, savedAutoRotate, turnedHumanoid = false, nil, nil
+	end)
+	gui.Destroying:Connect(releaseBody)
 
 	local function customFire(down)
 	end
